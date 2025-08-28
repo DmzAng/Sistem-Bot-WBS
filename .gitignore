@@ -1,7 +1,6 @@
 .env
 credentials.json
 main.txt
-package.json
 package-lock.json
 *.log
 build/
