@@ -44,29 +44,39 @@ module.exports = (bot, stateManager) => {
         );
       }
 
-      // Format daftar rencana
+      todayPlans.sort(
+        (a, b) => new Date(a.created_at) - new Date(b.created_at)
+      );
+
       const options = {
         reply_markup: {
-          inline_keyboard: todayPlans.map((plan) => [
+          inline_keyboard: todayPlans.map((plan, index) => [
             {
-              text: `Rencana #${plan.id} - ${plan.location_count} lokasi`,
-              callback_data: `select_plan_${plan.id}`,
+              text: `Rencana ${index + 1} - ${plan.location_count} lokasi`,
+              callback_data: `select_plan_${plan.id}_${index}`,
             },
           ]),
         },
       };
 
       let message = escapeMarkdown("📋 PILIH RENCANA KUNJUNGAN:") + "\n";
-      todayPlans.forEach((plan) => {
-        message += escapeMarkdown("Rencana Tanggal :" + formattedDate) + "\n";
+      todayPlans.forEach((plan, index) => {
+        message += escapeMarkdown(`Rencana ${index + 1}:`) + "\n";
+        message += escapeMarkdown("Tanggal: " + formattedDate) + "\n";
         message +=
           escapeMarkdown("Jumlah Lokasi: " + plan.location_count) + "\n";
-        message += escapeMarkdown("Status: " + plan.status) + "\n";
+        message += escapeMarkdown("Status: " + plan.status) + "\n\n";
       });
 
-      bot.sendMessage(chatId, message, {
+      // Perbaikan: Simpan hasil sendMessage ke variabel
+      const sentMessage = await bot.sendMessage(chatId, message, {
         parse_mode: "MarkdownV2",
         reply_markup: options.reply_markup,
+      });
+
+      stateManager.setState(chatId, {
+        ...stateManager.getState(chatId),
+        planSelectionMessageId: sentMessage.message_id,
       });
     } catch (error) {
       console.error("Error mendapatkan rencana:", error);
@@ -80,8 +90,27 @@ module.exports = (bot, stateManager) => {
     const chatId = msg.chat.id;
     const data = callbackQuery.data;
 
+    // Perbaikan: Dapatkan state terlebih dahulu
+    const state = stateManager.getState(chatId);
+
+    if (state && state.planSelectionMessageId) {
+      try {
+        await bot.editMessageReplyMarkup(
+          { inline_keyboard: [] },
+          {
+            chat_id: chatId,
+            message_id: state.planSelectionMessageId,
+          }
+        );
+      } catch (error) {
+        console.error("Error menghapus keyboard:", error);
+      }
+    }
+
     if (data.startsWith("select_plan_")) {
-      const planId = data.split("_")[2];
+      const parts = data.split("_");
+      const planId = parts[2];
+      const planIndex = parseInt(parts[3]) + 1;
 
       try {
         const plan = await dbService.getPlan(planId);
@@ -133,9 +162,16 @@ module.exports = (bot, stateManager) => {
           message += escapeMarkdown(`${index + 1}. ${loc.name}`) + "\n";
         });
 
-        bot.sendMessage(chatId, message, {
+        // Simpan message_id untuk lokasi selection
+        const locationSelectionMsg = await bot.sendMessage(chatId, message, {
           parse_mode: "MarkdownV2",
           reply_markup: options.reply_markup,
+        });
+
+        // Simpan message_id ke state
+        stateManager.setState(chatId, {
+          ...state,
+          locationSelectionMessageId: locationSelectionMsg.message_id,
         });
 
         bot.answerCallbackQuery(callbackQuery.id, {
@@ -155,6 +191,22 @@ module.exports = (bot, stateManager) => {
       const startIndex = parseInt(parts[3]);
 
       try {
+        // Hapus inline keyboard untuk pemilihan lokasi
+        const currentState = stateManager.getState(chatId);
+        if (currentState && currentState.locationSelectionMessageId) {
+          try {
+            await bot.editMessageReplyMarkup(
+              { inline_keyboard: [] },
+              {
+                chat_id: chatId,
+                message_id: currentState.locationSelectionMessageId,
+              }
+            );
+          } catch (error) {
+            console.error("Error menghapus keyboard:", error);
+          }
+        }
+
         const plan = await dbService.getPlan(planId);
         if (!plan) {
           return bot.answerCallbackQuery(callbackQuery.id, {
