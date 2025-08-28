@@ -53,7 +53,7 @@ module.exports = {
     const bot = new TelegramBot(process.env.TOKEN, {
       polling: {
         interval: 3000,
-        timeout: 10000,
+        param: 10000,
         autoStart: true,
         params: {
           timeout: 10,
