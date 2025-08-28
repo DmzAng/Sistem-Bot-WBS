@@ -2,12 +2,23 @@ const { google } = require("googleapis");
 const axios = require("./axiosService");
 
 async function getAuthClient() {
-  return google.auth.getClient({
-    keyFile: "credentials.json",
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
+  // Coba baca dari environment variable
+  if (process.env.GOOGLE_CREDENTIALS) {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    return new google.auth.JWT(
+      credentials.client_email,
+      null,
+      credentials.private_key,
+      ["https://www.googleapis.com/auth/spreadsheets"]
+    );
+  } else {
+    // Fallback ke file
+    return google.auth.getClient({
+      keyFile: "credentials.json",
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+  }
 }
-
 async function appendSheetData(spreadsheetId, range, values) {
   try {
     const auth = await getAuthClient();
