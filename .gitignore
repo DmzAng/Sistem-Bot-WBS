@@ -1,5 +1,4 @@
 .env
 credentials.json
-main.txt
 *.log
 build/
