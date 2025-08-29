@@ -7,7 +7,6 @@ const connectionString = process.env.DATABASE_URL;
 const poolConfig = connectionString
   ? {
       connectionString: connectionString,
-      // Opsi tambahan untuk koneksi yang stabil dan aman (khususnya jika DATABASE_URL disediakan)
       ssl:
         process.env.NODE_ENV === "production"
           ? { rejectUnauthorized: false }

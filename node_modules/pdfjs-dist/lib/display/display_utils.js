@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,39 +17,41 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.StatTimer = exports.RenderingCancelledException = exports.PixelsPerInch = exports.PageViewport = exports.PDFDateString = exports.LinkTarget = exports.DOMStandardFontDataFactory = exports.DOMSVGFactory = exports.DOMCanvasFactory = exports.DOMCMapReaderFactory = void 0;
-exports.addLinkAttributes = addLinkAttributes;
+exports.StatTimer = exports.RenderingCancelledException = exports.PixelsPerInch = exports.PageViewport = exports.PDFDateString = exports.DOMStandardFontDataFactory = exports.DOMSVGFactory = exports.DOMCanvasFactory = exports.DOMCMapReaderFactory = exports.AnnotationPrefix = void 0;
 exports.deprecated = deprecated;
+exports.getColorValues = getColorValues;
+exports.getCurrentTransform = getCurrentTransform;
+exports.getCurrentTransformInverse = getCurrentTransformInverse;
 exports.getFilenameFromUrl = getFilenameFromUrl;
 exports.getPdfFilenameFromUrl = getPdfFilenameFromUrl;
+exports.getRGB = getRGB;
 exports.getXfaPageViewport = getXfaPageViewport;
 exports.isDataScheme = isDataScheme;
 exports.isPdfFile = isPdfFile;
 exports.isValidFetchUrl = isValidFetchUrl;
 exports.loadScript = loadScript;
 
-var _util = require("../shared/util.js");
-
 var _base_factory = require("./base_factory.js");
 
-const DEFAULT_LINK_REL = "noopener noreferrer nofollow";
+var _util = require("../shared/util.js");
+
 const SVG_NS = "http://www.w3.org/2000/svg";
-const PixelsPerInch = {
-  CSS: 96.0,
-  PDF: 72.0,
+const AnnotationPrefix = "pdfjs_internal_id_";
+exports.AnnotationPrefix = AnnotationPrefix;
 
-  get PDF_TO_CSS_UNITS() {
-    return (0, _util.shadow)(this, "PDF_TO_CSS_UNITS", this.CSS / this.PDF);
-  }
+class PixelsPerInch {
+  static CSS = 96.0;
+  static PDF = 72.0;
+  static PDF_TO_CSS_UNITS = this.CSS / this.PDF;
+}
 
-};
 exports.PixelsPerInch = PixelsPerInch;
 
 class DOMCanvasFactory extends _base_factory.BaseCanvasFactory {
@@ -277,61 +279,6 @@ class RenderingCancelledException extends _util.BaseException {
 }
 
 exports.RenderingCancelledException = RenderingCancelledException;
-const LinkTarget = {
-  NONE: 0,
-  SELF: 1,
-  BLANK: 2,
-  PARENT: 3,
-  TOP: 4
-};
-exports.LinkTarget = LinkTarget;
-
-function addLinkAttributes(link, {
-  url,
-  target,
-  rel,
-  enabled = true
-} = {}) {
-  (0, _util.assert)(url && typeof url === "string", 'addLinkAttributes: A valid "url" parameter must provided.');
-  const urlNullRemoved = (0, _util.removeNullCharacters)(url);
-
-  if (enabled) {
-    link.href = link.title = urlNullRemoved;
-  } else {
-    link.href = "";
-    link.title = `Disabled: ${urlNullRemoved}`;
-
-    link.onclick = () => {
-      return false;
-    };
-  }
-
-  let targetStr = "";
-
-  switch (target) {
-    case LinkTarget.NONE:
-      break;
-
-    case LinkTarget.SELF:
-      targetStr = "_self";
-      break;
-
-    case LinkTarget.BLANK:
-      targetStr = "_blank";
-      break;
-
-    case LinkTarget.PARENT:
-      targetStr = "_parent";
-      break;
-
-    case LinkTarget.TOP:
-      targetStr = "_top";
-      break;
-  }
-
-  link.target = targetStr;
-  link.rel = typeof rel === "string" ? rel : DEFAULT_LINK_REL;
-}
 
 function isDataScheme(url) {
   const ii = url.length;
@@ -462,7 +409,7 @@ function loadScript(src, removeScriptElement = false) {
       reject(new Error(`Cannot load script at: ${script.src}`));
     };
 
-    (document.head || document.documentElement).appendChild(script);
+    (document.head || document.documentElement).append(script);
   });
 }
 
@@ -474,7 +421,7 @@ let pdfDateStringRegex;
 
 class PDFDateString {
   static toDateObject(input) {
-    if (!input || !(0, _util.isString)(input)) {
+    if (!input || typeof input !== "string") {
       return null;
     }
 
@@ -534,4 +481,60 @@ function getXfaPageViewport(xfaPage, {
     scale,
     rotation
   });
+}
+
+function getRGB(color) {
+  if (color.startsWith("#")) {
+    const colorRGB = parseInt(color.slice(1), 16);
+    return [(colorRGB & 0xff0000) >> 16, (colorRGB & 0x00ff00) >> 8, colorRGB & 0x0000ff];
+  }
+
+  if (color.startsWith("rgb(")) {
+    return color.slice(4, -1).split(",").map(x => parseInt(x));
+  }
+
+  if (color.startsWith("rgba(")) {
+    return color.slice(5, -1).split(",").map(x => parseInt(x)).slice(0, 3);
+  }
+
+  (0, _util.warn)(`Not a valid color format: "${color}"`);
+  return [0, 0, 0];
+}
+
+function getColorValues(colors) {
+  const span = document.createElement("span");
+  span.style.visibility = "hidden";
+  document.body.append(span);
+
+  for (const name of colors.keys()) {
+    span.style.color = name;
+    const computedColor = window.getComputedStyle(span).color;
+    colors.set(name, getRGB(computedColor));
+  }
+
+  span.remove();
+}
+
+function getCurrentTransform(ctx) {
+  const {
+    a,
+    b,
+    c,
+    d,
+    e,
+    f
+  } = ctx.getTransform();
+  return [a, b, c, d, e, f];
+}
+
+function getCurrentTransformInverse(ctx) {
+  const {
+    a,
+    b,
+    c,
+    d,
+    e,
+    f
+  } = ctx.getTransform().invertSelf();
+  return [a, b, c, d, e, f];
 }

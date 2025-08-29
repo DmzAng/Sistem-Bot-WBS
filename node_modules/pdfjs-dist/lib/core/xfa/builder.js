@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -213,7 +213,7 @@ class Builder {
     const prefixStack = this._namespacePrefixes.get(prefix);
 
     if (prefixStack && prefixStack.length > 0) {
-      return prefixStack[prefixStack.length - 1];
+      return prefixStack.at(-1);
     }
 
     (0, _util.warn)(`Unknown namespace prefix: ${prefix}.`);

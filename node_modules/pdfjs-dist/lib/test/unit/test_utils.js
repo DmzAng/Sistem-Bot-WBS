@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -29,7 +29,7 @@ exports.buildGetDocumentParams = buildGetDocumentParams;
 exports.createIdFactory = createIdFactory;
 exports.isEmptyObj = isEmptyObj;
 
-var _primitives = require("../../core/primitives.js");
+var _stream = require("../../core/stream.js");
 
 var _document = require("../../core/document.js");
 
@@ -39,7 +39,7 @@ var _core_utils = require("../../core/core_utils.js");
 
 var _is_node = require("../../shared/is_node.js");
 
-var _stream = require("../../core/stream.js");
+var _primitives = require("../../core/primitives.js");
 
 const TEST_PDFS_PATH = _is_node.isNodeJS ? "./test/pdfs/" : "../pdfs/";
 exports.TEST_PDFS_PATH = TEST_PDFS_PATH;
@@ -104,6 +104,7 @@ class XRefMock {
       send: () => {}
     });
     this._newRefNum = null;
+    this.stream = new _stream.NullStream();
 
     for (const key in array) {
       const obj = array[key];
@@ -113,7 +114,7 @@ class XRefMock {
 
   getNewRef() {
     if (this._newRefNum === null) {
-      this._newRefNum = Object.keys(this._map).length;
+      this._newRefNum = Object.keys(this._map).length || 1;
     }
 
     return _primitives.Ref.get(this._newRefNum++, 0);
@@ -132,11 +133,11 @@ class XRefMock {
   }
 
   fetchIfRef(obj) {
-    if (!(0, _primitives.isRef)(obj)) {
-      return obj;
+    if (obj instanceof _primitives.Ref) {
+      return this.fetch(obj);
     }
 
-    return this.fetch(obj);
+    return obj;
   }
 
   async fetchIfRefAsync(obj) {

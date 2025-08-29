@@ -32,7 +32,6 @@ export class PDFFindController {
     constructor({ linkService, eventBus }: PDFFindControllerOptions);
     _linkService: import("./interfaces").IPDFLinkService;
     _eventBus: import("./event_utils").EventBus;
-    executeCommand: ((cmd: any, state: any) => void) | undefined;
     get highlightMatches(): boolean | undefined;
     get pageMatches(): any[] | undefined;
     get pageMatchesLength(): any[] | undefined;
@@ -49,10 +48,6 @@ export class PDFFindController {
      */
     setDocument(pdfDocument: PDFDocumentProxy): void;
     _pdfDocument: import("../src/display/api").PDFDocumentProxy | null | undefined;
-    /**
-     * @private
-     */
-    private _onFind;
     _dirtyMatch: boolean | undefined;
     _state: any;
     _findTimeout: any;
@@ -64,7 +59,6 @@ export class PDFFindController {
         matchIndex?: number | undefined;
     }): void;
     _scrollMatches: boolean | undefined;
-    _reset(): void;
     _pageMatches: any[] | undefined;
     _pageMatchesLength: any[] | undefined;
     _selected: {
@@ -79,45 +73,12 @@ export class PDFFindController {
     _extractTextPromises: any[] | undefined;
     _pageContents: any[] | undefined;
     _pageDiffs: any[] | undefined;
+    _hasDiacritics: any[] | undefined;
     _matchesCountTotal: number | undefined;
     _pagesToSearch: number | null | undefined;
     _pendingFindMatches: Set<any> | undefined;
     _resumePageIdx: any;
     _firstPageCapability: any;
-    /**
-     * @type {string} The (current) normalized search query.
-     */
-    get _query(): string;
     _rawQuery: any;
-    _shouldDirtyMatch(state: any): boolean;
-    /**
-     * Helper for multi-term search that fills the `matchesWithLength` array
-     * and handles cases where one search term includes another search term (for
-     * example, "tamed tame" or "this is"). It looks for intersecting terms in
-     * the `matches` and keeps elements with a longer match length.
-     */
-    _prepareMatches(matchesWithLength: any, matches: any, matchesLength: any): void;
-    /**
-     * Determine if the search query constitutes a "whole word", by comparing the
-     * first/last character type with the preceding/following character type.
-     */
-    _isEntireWord(content: any, startIdx: any, length: any): boolean;
-    _calculatePhraseMatch(query: any, pageIndex: any, pageContent: any, pageDiffs: any, entireWord: any): void;
-    _calculateWordMatch(query: any, pageIndex: any, pageContent: any, pageDiffs: any, entireWord: any): void;
-    _calculateMatch(pageIndex: any): void;
-    _extractText(): void;
-    _updatePage(index: any): void;
-    _updateAllPages(): void;
-    _nextMatch(): void;
-    _matchesReady(matches: any): boolean;
-    _nextPageMatch(): void;
-    _advanceOffsetPage(previous: any): void;
-    _updateMatch(found?: boolean): void;
-    _onFindBarClose(evt: any): void;
-    _requestMatchesCount(): {
-        current: number;
-        total: number | undefined;
-    };
-    _updateUIResultsCount(): void;
-    _updateUIState(state: any, previous?: boolean): void;
+    #private;
 }

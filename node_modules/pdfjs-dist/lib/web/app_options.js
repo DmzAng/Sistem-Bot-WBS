@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -28,18 +28,15 @@ exports.compatibilityParams = exports.OptionKind = exports.AppOptions = void 0;
 const compatibilityParams = Object.create(null);
 exports.compatibilityParams = compatibilityParams;
 {
-  const userAgent = typeof navigator !== "undefined" && navigator.userAgent || "";
-  const platform = typeof navigator !== "undefined" && navigator.platform || "";
-  const maxTouchPoints = typeof navigator !== "undefined" && navigator.maxTouchPoints || 1;
+  if (typeof navigator === "undefined") {
+    globalThis.navigator = Object.create(null);
+  }
+
+  const userAgent = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+  const maxTouchPoints = navigator.maxTouchPoints || 1;
   const isAndroid = /Android/.test(userAgent);
   const isIOS = /\b(iPad|iPhone|iPod)(?=;)/.test(userAgent) || platform === "MacIntel" && maxTouchPoints > 1;
-  const isIOSChrome = /CriOS/.test(userAgent);
-
-  (function checkOnBlobSupport() {
-    if (isIOSChrome) {
-      compatibilityParams.disableCreateObjectURL = true;
-    }
-  })();
 
   (function checkCanvasSizeLimitation() {
     if (isIOS || isAndroid) {
@@ -55,6 +52,10 @@ const OptionKind = {
 };
 exports.OptionKind = OptionKind;
 const defaultOptions = {
+  annotationEditorMode: {
+    value: -1,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
   annotationMode: {
     value: 2,
     kind: OptionKind.VIEWER + OptionKind.PREFERENCE
@@ -62,10 +63,6 @@ const defaultOptions = {
   cursorToolOnLoad: {
     value: 0,
     kind: OptionKind.VIEWER + OptionKind.PREFERENCE
-  },
-  defaultUrl: {
-    value: "compressed.tracemonkey-pldi-09.pdf",
-    kind: OptionKind.VIEWER
   },
   defaultZoomValue: {
     value: "",
@@ -113,8 +110,19 @@ const defaultOptions = {
   },
   maxCanvasPixels: {
     value: 16777216,
-    compatibility: compatibilityParams.maxCanvasPixels,
     kind: OptionKind.VIEWER
+  },
+  forcePageColors: {
+    value: false,
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  pageColorsBackground: {
+    value: "Canvas",
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
+  },
+  pageColorsForeground: {
+    value: "CanvasText",
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
   },
   pdfBugEnabled: {
     value: false,
@@ -122,10 +130,6 @@ const defaultOptions = {
   },
   printResolution: {
     value: 150,
-    kind: OptionKind.VIEWER
-  },
-  renderer: {
-    value: "canvas",
     kind: OptionKind.VIEWER
   },
   sidebarViewOnLoad: {
@@ -222,19 +226,26 @@ const defaultOptions = {
   }
 };
 {
+  defaultOptions.defaultUrl = {
+    value: "compressed.tracemonkey-pldi-09.pdf",
+    kind: OptionKind.VIEWER
+  };
   defaultOptions.disablePreferences = {
     value: false,
     kind: OptionKind.VIEWER
   };
   defaultOptions.locale = {
-    value: typeof navigator !== "undefined" ? navigator.language : "en-US",
+    value: navigator.language || "en-US",
     kind: OptionKind.VIEWER
+  };
+  defaultOptions.renderer = {
+    value: "canvas",
+    kind: OptionKind.VIEWER + OptionKind.PREFERENCE
   };
   defaultOptions.sandboxBundleSrc = {
     value: "../build/pdf.sandbox.js",
     kind: OptionKind.VIEWER
   };
-  defaultOptions.renderer.kind += OptionKind.PREFERENCE;
 }
 const userOptions = Object.create(null);
 
@@ -253,7 +264,7 @@ class AppOptions {
     const defaultOption = defaultOptions[name];
 
     if (defaultOption !== undefined) {
-      return defaultOption.compatibility ?? defaultOption.value;
+      return compatibilityParams[name] ?? defaultOption.value;
     }
 
     return undefined;
@@ -284,7 +295,7 @@ class AppOptions {
       }
 
       const userOption = userOptions[name];
-      options[name] = userOption !== undefined ? userOption : defaultOption.compatibility ?? defaultOption.value;
+      options[name] = userOption !== undefined ? userOption : compatibilityParams[name] ?? defaultOption.value;
     }
 
     return options;

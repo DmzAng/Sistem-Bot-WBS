@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -44,7 +44,8 @@ class AnnotationLayerBuilder {
     hasJSActionsPromise = null,
     fieldObjectsPromise = null,
     mouseState = null,
-    annotationCanvasMap = null
+    annotationCanvasMap = null,
+    accessibilityManager = null
   }) {
     this.pageDiv = pageDiv;
     this.pdfPage = pdfPage;
@@ -59,6 +60,7 @@ class AnnotationLayerBuilder {
     this._fieldObjectsPromise = fieldObjectsPromise;
     this._mouseState = mouseState;
     this._annotationCanvasMap = annotationCanvasMap;
+    this._accessibilityManager = accessibilityManager;
     this.div = null;
     this._cancelled = false;
   }
@@ -88,7 +90,8 @@ class AnnotationLayerBuilder {
       hasJSActions,
       fieldObjects,
       mouseState: this._mouseState,
-      annotationCanvasMap: this._annotationCanvasMap
+      annotationCanvasMap: this._annotationCanvasMap,
+      accessibilityManager: this._accessibilityManager
     };
 
     if (this.div) {
@@ -96,7 +99,7 @@ class AnnotationLayerBuilder {
     } else {
       this.div = document.createElement("div");
       this.div.className = "annotationLayer";
-      this.pageDiv.appendChild(this.div);
+      this.pageDiv.append(this.div);
       parameters.div = this.div;
 
       _pdf.AnnotationLayer.render(parameters);

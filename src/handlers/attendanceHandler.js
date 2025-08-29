@@ -84,17 +84,84 @@ async function getLocationName(lat, lon) {
   }
 }
 
+async function sendDataToSheets(entityType) {
+  try {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const day = now.getDate();
+
+    // Dapatkan data absen hari ini dari database
+    const records = await dbService.getDailyAttendanceForEntity(
+      entityType,
+      year,
+      month,
+      day
+    );
+
+    if (records.length === 0) {
+      throw new Error("Tidak ada data absen hari ini di database");
+    }
+
+    // Format data untuk dikirim ke Google Sheets
+    const rowData = records.map((record) => {
+      const tanggal = `${String(day).padStart(2, "0")}/${String(month).padStart(
+        2,
+        "0"
+      )}/${year}`;
+
+      if (entityType === "MAGANG") {
+        return [
+          tanggal,
+          record.nama,
+          record.status || "-",
+          record.asal || "-",
+          record.unit,
+          record.status_kehadiran,
+        ];
+      } else {
+        // WBS
+        return [
+          tanggal,
+          record.nama,
+          record.posisi || "-",
+          record.unit,
+          record.status_kehadiran,
+          record.keterangan || "-",
+        ];
+      }
+    });
+
+    // Kirim ke Google Sheets
+    await googleSheetsService.bulkSaveToSendRekap(
+      entityType === "MAGANG" ? "SendRekapMagang" : "SendRekapWBS",
+      rowData
+    );
+
+    console.log(
+      `✅ Data berhasil dikirim ke Google Sheets: ${rowData.length} records`
+    );
+  } catch (error) {
+    console.error("Error sending data to sheets:", error);
+    throw error;
+  }
+}
+
 async function saveAttendanceData(bot, userStates, chatId, state) {
   console.log(`🔄 saveAttendanceData: chatId=${chatId}, state=`, state);
   try {
     const isSehat = state.healthStatus === "Sehat";
     console.log(`🩺 Health status=${state.healthStatus}, isSehat=${isSehat}`);
 
+    // await sendDataToSheets(state.entityType);
+
     if (isSehat) {
       if (!state.location || !state.photo) {
         throw new Error("Data lokasi atau foto tidak lengkap");
       }
     }
+
+    // await generateAndSendRekap(bot, state.entityType);
 
     const lokasiData = isSehat
       ? await getLocationName(state.location?.lat, state.location?.lon)
@@ -151,6 +218,8 @@ async function saveAttendanceData(bot, userStates, chatId, state) {
 
     await dbService.saveAttendance(state.entityType, attendanceData);
     console.log("✅ Attendance saved to database");
+
+    await sendDataToSheets(state.entityType);
 
     const rowDataForSendRekap =
       state.entityType === "MAGANG"

@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -145,7 +145,7 @@ class PDFScriptingManager {
     }
 
     for (const [name, listener] of this._domEvents) {
-      window.addEventListener(name, listener);
+      window.addEventListener(name, listener, true);
     }
 
     try {
@@ -298,7 +298,7 @@ class PDFScriptingManager {
           break;
 
         case "SaveAs":
-          this._eventBus.dispatch("save", {
+          this._eventBus.dispatch("download", {
             source: this
           });
 
@@ -355,7 +355,7 @@ class PDFScriptingManager {
     const ids = siblings ? [id, ...siblings] : [id];
 
     for (const elementId of ids) {
-      const element = document.getElementById(elementId);
+      const element = document.querySelector(`[data-element-id="${elementId}"]`);
 
       if (element) {
         element.dispatchEvent(new CustomEvent("updatefromsandbox", {
@@ -490,7 +490,7 @@ class PDFScriptingManager {
     this._internalEvents.clear();
 
     for (const [name, listener] of this._domEvents) {
-      window.removeEventListener(name, listener);
+      window.removeEventListener(name, listener, true);
     }
 
     this._domEvents.clear();

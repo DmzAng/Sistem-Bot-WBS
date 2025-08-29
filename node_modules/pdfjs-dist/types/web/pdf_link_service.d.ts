@@ -1,3 +1,30 @@
+export type ExternalLinkParameters = {
+    /**
+     * - An absolute URL.
+     */
+    url: string;
+    /**
+     * - The link target. The default value is
+     * `LinkTarget.NONE`.
+     */
+    target?: {
+        NONE: number;
+        SELF: number;
+        BLANK: number;
+        PARENT: number;
+        TOP: number;
+    } | undefined;
+    /**
+     * - The link relationship. The default value is
+     * `DEFAULT_LINK_REL`.
+     */
+    rel?: string | undefined;
+    /**
+     * - Whether the link should be enabled. The
+     * default value is true.
+     */
+    enabled?: boolean | undefined;
+};
 export type EventBus = import("./event_utils").EventBus;
 export type IPDFLinkService = import("./interfaces").IPDFLinkService;
 export type PDFLinkServiceOptions = {
@@ -23,6 +50,13 @@ export type PDFLinkServiceOptions = {
      */
     ignoreDestinationZoom?: boolean | undefined;
 };
+export namespace LinkTarget {
+    const NONE: number;
+    const SELF: number;
+    const BLANK: number;
+    const PARENT: number;
+    const TOP: number;
+}
 /**
  * @typedef {Object} PDFLinkServiceOptions
  * @property {EventBus} eventBus - The application event bus.
@@ -41,6 +75,7 @@ export type PDFLinkServiceOptions = {
  * @implements {IPDFLinkService}
  */
 export class PDFLinkService implements IPDFLinkService {
+    static "__#27@#isValidExplicitDestination"(dest: any): boolean;
     /**
      * @param {PDFLinkServiceOptions} options
      */
@@ -54,7 +89,6 @@ export class PDFLinkService implements IPDFLinkService {
     pdfDocument: any;
     pdfViewer: any;
     pdfHistory: any;
-    _pagesRefCache: any;
     setDocument(pdfDocument: any, baseUrl?: null): void;
     setViewer(pdfViewer: any): void;
     setHistory(pdfHistory: any): void;
@@ -79,10 +113,6 @@ export class PDFLinkService implements IPDFLinkService {
      */
     get rotation(): number;
     /**
-     * @private
-     */
-    private _goToDestinationHelper;
-    /**
      * This method will, when available, also update the browser history.
      *
      * @param {string|Array} dest - The named, or explicit, PDF destination.
@@ -95,7 +125,7 @@ export class PDFLinkService implements IPDFLinkService {
      */
     goToPage(val: number | string): void;
     /**
-     * Wrapper around the `addLinkAttributes`-function in the API.
+     * Wrapper around the `addLinkAttributes` helper function.
      * @param {HTMLAnchorElement} link
      * @param {string} url
      * @param {boolean} [newWindow]
@@ -127,9 +157,9 @@ export class PDFLinkService implements IPDFLinkService {
      */
     cachePageRef(pageNum: number, pageRef: Object): void;
     /**
-     * @private
+     * @ignore
      */
-    private _cachedPageNumber;
+    _cachedPageNumber(pageRef: any): any;
     /**
      * @param {number} pageNumber
      */
@@ -138,6 +168,7 @@ export class PDFLinkService implements IPDFLinkService {
      * @param {number} pageNumber
      */
     isPageCached(pageNumber: number): any;
+    #private;
 }
 /**
  * @implements {IPDFLinkService}

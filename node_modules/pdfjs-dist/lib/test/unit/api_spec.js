@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -28,6 +28,8 @@ var _test_utils = require("./test_utils.js");
 var _api = require("../../display/api.js");
 
 var _display_utils = require("../../display/display_utils.js");
+
+var _annotation_storage = require("../../display/annotation_storage.js");
 
 var _ui_utils = require("../../web/ui_utils.js");
 
@@ -59,7 +61,7 @@ describe("api", function () {
   }
 
   function mergeText(items) {
-    return items.map(chunk => chunk.str + (chunk.hasEOL ? "\n" : "")).join("");
+    return items.map(chunk => (chunk.str ?? "") + (chunk.hasEOL ? "\n" : "")).join("");
   }
 
   describe("getDocument", function () {
@@ -128,12 +130,34 @@ describe("api", function () {
       await destroyed;
       expect(true).toEqual(true);
     });
-    it("creates pdf doc from typed array", async function () {
+    it("creates pdf doc from TypedArray", async function () {
       const typedArrayPdf = await _test_utils.DefaultFileReaderFactory.fetch({
         path: _test_utils.TEST_PDFS_PATH + basicApiFileName
       });
+      expect(typedArrayPdf instanceof Uint8Array).toEqual(true);
       expect(typedArrayPdf.length).toEqual(basicApiFileLength);
       const loadingTask = (0, _api.getDocument)(typedArrayPdf);
+      expect(loadingTask instanceof _api.PDFDocumentLoadingTask).toEqual(true);
+      const progressReportedCapability = (0, _util.createPromiseCapability)();
+
+      loadingTask.onProgress = function (data) {
+        progressReportedCapability.resolve(data);
+      };
+
+      const data = await Promise.all([loadingTask.promise, progressReportedCapability.promise]);
+      expect(data[0] instanceof _api.PDFDocumentProxy).toEqual(true);
+      expect(data[1].loaded / data[1].total).toEqual(1);
+      await loadingTask.destroy();
+    });
+    it("creates pdf doc from ArrayBuffer", async function () {
+      const {
+        buffer: arrayBufferPdf
+      } = await _test_utils.DefaultFileReaderFactory.fetch({
+        path: _test_utils.TEST_PDFS_PATH + basicApiFileName
+      });
+      expect(arrayBufferPdf instanceof ArrayBuffer).toEqual(true);
+      expect(arrayBufferPdf.byteLength).toEqual(basicApiFileLength);
+      const loadingTask = (0, _api.getDocument)(arrayBufferPdf);
       expect(loadingTask instanceof _api.PDFDocumentLoadingTask).toEqual(true);
       const progressReportedCapability = (0, _util.createPromiseCapability)();
 
@@ -285,7 +309,25 @@ describe("api", function () {
       });
       await Promise.all([result1, result2]);
     });
-    it("creates pdf doc from empty typed array", async function () {
+    it("creates pdf doc from password protected PDF file and passes an Error " + "(asynchronously) to the onPassword callback (bug 1754421)", async function () {
+      const loadingTask = (0, _api.getDocument)((0, _test_utils.buildGetDocumentParams)("issue3371.pdf"));
+      expect(loadingTask instanceof _api.PDFDocumentLoadingTask).toEqual(true);
+
+      loadingTask.onPassword = function (updatePassword, reason) {
+        waitSome(() => {
+          updatePassword(new Error("Should reject the loadingTask."));
+        });
+      };
+
+      await loadingTask.promise.then(function () {
+        expect(false).toEqual(true);
+      }, function (reason) {
+        expect(reason instanceof _util.PasswordException).toEqual(true);
+        expect(reason.code).toEqual(_util.PasswordResponses.NEED_PASSWORD);
+      });
+      await loadingTask.destroy();
+    });
+    it("creates pdf doc from empty TypedArray", async function () {
       const loadingTask = (0, _api.getDocument)(new Uint8Array(0));
       expect(loadingTask instanceof _api.PDFDocumentLoadingTask).toEqual(true);
 
@@ -328,6 +370,7 @@ describe("api", function () {
       expect(opList.fnArray.length).toEqual(0);
       expect(opList.argsArray.length).toEqual(0);
       expect(opList.lastChunk).toEqual(true);
+      expect(opList.separateAnnots).toEqual(null);
       await loadingTask.destroy();
     });
     it("creates pdf doc from PDF file with bad XRef header", async function () {
@@ -341,6 +384,7 @@ describe("api", function () {
       expect(opList.fnArray.length).toEqual(0);
       expect(opList.argsArray.length).toEqual(0);
       expect(opList.lastChunk).toEqual(true);
+      expect(opList.separateAnnots).toEqual(null);
       await loadingTask.destroy();
     });
     it("creates pdf doc from PDF file with bad XRef byteWidths", async function () {
@@ -386,6 +430,7 @@ describe("api", function () {
       expect(opList.fnArray.length).toBeGreaterThan(5);
       expect(opList.argsArray.length).toBeGreaterThan(5);
       expect(opList.lastChunk).toEqual(true);
+      expect(opList.separateAnnots).toEqual(null);
 
       try {
         await pdfDocument2.getPage(1);
@@ -415,6 +460,7 @@ describe("api", function () {
         expect(opList.fnArray.length).toBeGreaterThan(5);
         expect(opList.argsArray.length).toBeGreaterThan(5);
         expect(opList.lastChunk).toEqual(true);
+        expect(opList.separateAnnots).toEqual(null);
       }
 
       await Promise.all([loadingTask1.destroy(), loadingTask2.destroy()]);
@@ -434,7 +480,7 @@ describe("api", function () {
         expect(false).toEqual(true);
       } catch (reason) {
         expect(reason instanceof _util.UnknownErrorException).toEqual(true);
-        expect(reason.message).toEqual("Page dictionary kids object is not an array.");
+        expect(reason.message).toEqual("Illegal character: 41");
       }
 
       try {
@@ -442,10 +488,23 @@ describe("api", function () {
         expect(false).toEqual(true);
       } catch (reason) {
         expect(reason instanceof _util.UnknownErrorException).toEqual(true);
-        expect(reason.message).toEqual("Page dictionary kids object is not an array.");
+        expect(reason.message).toEqual("End of file inside array.");
       }
 
       await Promise.all([loadingTask1.destroy(), loadingTask2.destroy()]);
+    });
+    it("creates pdf doc from PDF file with bad /Resources entry", async function () {
+      const loadingTask = (0, _api.getDocument)((0, _test_utils.buildGetDocumentParams)("issue15150.pdf"));
+      expect(loadingTask instanceof _api.PDFDocumentLoadingTask).toEqual(true);
+      const pdfDocument = await loadingTask.promise;
+      expect(pdfDocument.numPages).toEqual(1);
+      const page = await pdfDocument.getPage(1);
+      expect(page instanceof _api.PDFPageProxy).toEqual(true);
+      const opList = await page.getOperatorList();
+      expect(opList.fnArray).toEqual([_util.OPS.setLineWidth, _util.OPS.setStrokeRGBColor, _util.OPS.constructPath, _util.OPS.closeStroke]);
+      expect(opList.argsArray).toEqual([[0.5], new Uint8ClampedArray([255, 0, 0]), [[_util.OPS.moveTo, _util.OPS.lineTo], [0, 9.75, 0.5, 9.75], [0, 0.5, 9.75, 9.75]], null]);
+      expect(opList.lastChunk).toEqual(true);
+      await loadingTask.destroy();
     });
   });
   describe("PDFWorker", function () {
@@ -567,25 +626,17 @@ describe("api", function () {
       expect(data.pageNumber).toEqual(1);
     });
     it("gets non-existent page", async function () {
-      let outOfRangePromise = pdfDocument.getPage(100);
-      let nonIntegerPromise = pdfDocument.getPage(2.5);
-      let nonNumberPromise = pdfDocument.getPage("1");
-      outOfRangePromise = outOfRangePromise.then(function () {
-        throw new Error("shall fail for out-of-range pageNumber parameter");
-      }, function (reason) {
-        expect(reason instanceof Error).toEqual(true);
-      });
-      nonIntegerPromise = nonIntegerPromise.then(function () {
-        throw new Error("shall fail for non-integer pageNumber parameter");
-      }, function (reason) {
-        expect(reason instanceof Error).toEqual(true);
-      });
-      nonNumberPromise = nonNumberPromise.then(function () {
-        throw new Error("shall fail for non-number pageNumber parameter");
-      }, function (reason) {
-        expect(reason instanceof Error).toEqual(true);
-      });
-      await Promise.all([outOfRangePromise, nonIntegerPromise, nonNumberPromise]);
+      const pageNumbers = [100, 2.5, "1"];
+
+      for (const pageNumber of pageNumbers) {
+        try {
+          await pdfDocument.getPage(pageNumber);
+          expect(false).toEqual(true);
+        } catch (reason) {
+          expect(reason instanceof Error).toEqual(true);
+          expect(reason.message).toEqual("Invalid page request.");
+        }
+      }
     });
     it("gets page, from /Pages tree with circular reference", async function () {
       const loadingTask = (0, _api.getDocument)((0, _test_utils.buildGetDocumentParams)("Pages-tree-refs.pdf"));
@@ -630,17 +681,39 @@ describe("api", function () {
       expect(pageIndex).toEqual(1);
     });
     it("gets invalid page index", async function () {
-      const ref = {
+      const pageRefs = [{
         num: 3,
         gen: 0
-      };
+      }, {
+        num: -1,
+        gen: 0
+      }, "qwerty", null];
+      const expectedErrors = [{
+        exception: _util.UnknownErrorException,
+        message: "The reference does not point to a /Page dictionary."
+      }, {
+        exception: Error,
+        message: "Invalid pageIndex request."
+      }, {
+        exception: Error,
+        message: "Invalid pageIndex request."
+      }, {
+        exception: Error,
+        message: "Invalid pageIndex request."
+      }];
 
-      try {
-        await pdfDocument.getPageIndex(ref);
-        expect(false).toEqual(true);
-      } catch (reason) {
-        expect(reason instanceof _util.UnknownErrorException).toEqual(true);
-        expect(reason.message).toEqual("The reference does not point to a /Page dictionary.");
+      for (let i = 0, ii = pageRefs.length; i < ii; i++) {
+        try {
+          await pdfDocument.getPageIndex(pageRefs[i]);
+          expect(false).toEqual(true);
+        } catch (reason) {
+          const {
+            exception,
+            message
+          } = expectedErrors[i];
+          expect(reason instanceof exception).toEqual(true);
+          expect(reason.message).toEqual(message);
+        }
       }
     });
     it("gets destinations, from /Dests dictionary", async function () {
@@ -720,6 +793,18 @@ describe("api", function () {
       }, {
         name: "XYZ"
       }, 69, 125, 0]);
+      await loadingTask.destroy();
+    });
+    it("gets a destination, from /Names (NameTree) dictionary with keys using PDFDocEncoding (issue 14847)", async function () {
+      const loadingTask = (0, _api.getDocument)((0, _test_utils.buildGetDocumentParams)("issue14847.pdf"));
+      const pdfDoc = await loadingTask.promise;
+      const destination = await pdfDoc.getDestination("index");
+      expect(destination).toEqual([{
+        num: 10,
+        gen: 0
+      }, {
+        name: "XYZ"
+      }, 85.039, 728.504, null]);
       await loadingTask.destroy();
     });
     it("gets non-string destination", async function () {
@@ -912,6 +997,70 @@ describe("api", function () {
       });
       await loadingTask.destroy();
     });
+    it("gets non-existent fieldObjects", async function () {
+      const fieldObjects = await pdfDocument.getFieldObjects();
+      expect(fieldObjects).toEqual(null);
+    });
+    it("gets fieldObjects", async function () {
+      const loadingTask = (0, _api.getDocument)((0, _test_utils.buildGetDocumentParams)("js-authors.pdf"));
+      const pdfDoc = await loadingTask.promise;
+      const fieldObjects = await pdfDoc.getFieldObjects();
+      expect(fieldObjects).toEqual({
+        Text1: [{
+          id: "25R",
+          value: "",
+          defaultValue: "",
+          multiline: false,
+          password: false,
+          charLimit: 0,
+          comb: false,
+          editable: true,
+          hidden: false,
+          name: "Text1",
+          rect: [24.1789, 719.66, 432.22, 741.66],
+          actions: null,
+          page: 0,
+          strokeColor: null,
+          fillColor: null,
+          rotation: 0,
+          type: "text"
+        }],
+        Button1: [{
+          id: "26R",
+          value: "Off",
+          defaultValue: null,
+          exportValues: undefined,
+          editable: true,
+          name: "Button1",
+          rect: [455.436, 719.678, 527.436, 739.678],
+          hidden: false,
+          actions: {
+            Action: [`this.getField("Text1").value = this.info.authors.join("::");`]
+          },
+          page: 0,
+          strokeColor: null,
+          fillColor: new Uint8ClampedArray([192, 192, 192]),
+          rotation: 0,
+          type: "button"
+        }]
+      });
+      await loadingTask.destroy();
+    });
+    it("gets non-existent calculationOrder", async function () {
+      const calculationOrder = await pdfDocument.getCalculationOrderIds();
+      expect(calculationOrder).toEqual(null);
+    });
+    it("gets calculationOrder", async function () {
+      if (_is_node.isNodeJS) {
+        pending("Linked test-cases are not supported in Node.js.");
+      }
+
+      const loadingTask = (0, _api.getDocument)((0, _test_utils.buildGetDocumentParams)("issue13132.pdf"));
+      const pdfDoc = await loadingTask.promise;
+      const calculationOrder = await pdfDoc.getCalculationOrderIds();
+      expect(calculationOrder).toEqual(["319R", "320R", "321R", "322R", "323R", "324R", "325R", "326R", "327R", "328R", "329R", "330R", "331R", "332R", "333R", "334R", "335R"]);
+      await loadingTask.destroy();
+    });
     it("gets non-existent outline", async function () {
       const loadingTask = (0, _api.getDocument)((0, _test_utils.buildGetDocumentParams)("tracemonkey.pdf"));
       const pdfDoc = await loadingTask.promise;
@@ -951,6 +1100,30 @@ describe("api", function () {
       expect(outlineItemOne.bold).toEqual(false);
       expect(outlineItemOne.italic).toEqual(true);
       expect(outlineItemOne.color).toEqual(new Uint8ClampedArray([0, 0, 0]));
+      await loadingTask.destroy();
+    });
+    it("gets outline, with dest-strings using PDFDocEncoding (issue 14864)", async function () {
+      if (_is_node.isNodeJS) {
+        pending("Linked test-cases are not supported in Node.js.");
+      }
+
+      const loadingTask = (0, _api.getDocument)((0, _test_utils.buildGetDocumentParams)("issue14864.pdf"));
+      const pdfDoc = await loadingTask.promise;
+      const outline = await pdfDoc.getOutline();
+      expect(Array.isArray(outline)).toEqual(true);
+      expect(outline.length).toEqual(6);
+      expect(outline[4]).toEqual({
+        dest: "Händel -- Halle🎆lujah",
+        url: null,
+        unsafeUrl: undefined,
+        newWindow: undefined,
+        title: "Händel -- Halle🎆lujah",
+        color: new Uint8ClampedArray([0, 0, 0]),
+        count: undefined,
+        bold: false,
+        italic: false,
+        items: []
+      });
       await loadingTask.destroy();
     });
     it("gets outline with non-displayable chars", async function () {
@@ -1121,7 +1294,7 @@ describe("api", function () {
       const fingerprints1 = data[0].fingerprints;
       const fingerprints2 = data[1].fingerprints;
       expect(fingerprints1).not.toEqual(fingerprints2);
-      expect(fingerprints1).toEqual(["2f695a83d6e7553c24fc08b7ac69712d", null]);
+      expect(fingerprints1).toEqual(["657428c0628e329f9a281fb6d2d092d4", null]);
       expect(fingerprints2).toEqual(["04c7126b34a46b6d4d6e7a1eff7edcb6", null]);
       await Promise.all([loadingTask1.destroy(), loadingTask2.destroy()]);
     });
@@ -1270,6 +1443,7 @@ describe("api", function () {
         scale: 1.5,
         rotation: 90
       });
+      expect(viewport instanceof _display_utils.PageViewport).toEqual(true);
       expect(viewport.viewBox).toEqual(page.view);
       expect(viewport.scale).toEqual(1.5);
       expect(viewport.rotation).toEqual(90);
@@ -1284,6 +1458,7 @@ describe("api", function () {
         offsetX: 100,
         offsetY: -100
       });
+      expect(viewport instanceof _display_utils.PageViewport).toEqual(true);
       expect(viewport.transform).toEqual([1, 0, 0, -1, 100, 741.89]);
     });
     it('gets viewport respecting "dontFlip" argument', function () {
@@ -1293,11 +1468,13 @@ describe("api", function () {
         scale,
         rotation
       });
+      expect(viewport instanceof _display_utils.PageViewport).toEqual(true);
       const dontFlipViewport = page.getViewport({
         scale,
         rotation,
         dontFlip: true
       });
+      expect(dontFlipViewport instanceof _display_utils.PageViewport).toEqual(true);
       expect(dontFlipViewport).not.toEqual(viewport);
       expect(dontFlipViewport).toEqual(viewport.clone({
         dontFlip: true
@@ -1370,12 +1547,11 @@ describe("api", function () {
     it("gets text content", async function () {
       const defaultPromise = page.getTextContent();
       const parametersPromise = page.getTextContent({
-        normalizeWhitespace: true,
         disableCombineTextItems: true
       });
       const data = await Promise.all([defaultPromise, parametersPromise]);
       expect(!!data[0].items).toEqual(true);
-      expect(data[0].items.length).toEqual(11);
+      expect(data[0].items.length).toEqual(15);
       expect(!!data[0].styles).toEqual(true);
       const page1 = mergeText(data[0].items);
       expect(page1).toEqual(`Table Of Content
@@ -1408,8 +1584,8 @@ page 1 / 3`);
       });
       expect(styles[fontName]).toEqual({
         fontFamily: "serif",
-        ascent: NaN,
-        descent: NaN,
+        ascent: _is_node.isNodeJS ? NaN : 0.683,
+        descent: _is_node.isNodeJS ? NaN : -0.217,
         vertical: false
       });
       await loadingTask.destroy();
@@ -1510,6 +1686,26 @@ Stronach Group und Vizepräsidentin und Institutsleiterin des Stronach Institut 
 sozialökonomische Gerechtigkeit.`)).toEqual(true);
       await loadingTask.destroy();
     });
+    it("gets text content, with invisible text marks (issue 9186)", async function () {
+      if (_is_node.isNodeJS) {
+        pending("Linked test-cases are not supported in Node.js.");
+      }
+
+      const loadingTask = (0, _api.getDocument)((0, _test_utils.buildGetDocumentParams)("issue9186.pdf"));
+      const pdfDoc = await loadingTask.promise;
+      const pdfPage = await pdfDoc.getPage(1);
+      const {
+        items
+      } = await pdfPage.getTextContent();
+      const text = mergeText(items);
+      expect(text.includes(`This Agreement (“Agreement”) is made as of this 25th day of January, 2017, by and
+between EDWARD G. ATSINGER III, not individually but as sole Trustee of the ATSINGER
+FAMILY TRUST /u/a dated October 31, 1980 as amended, and STUART W. EPPERSON, not
+individually but solely as Trustee of the STUART W. EPPERSON REVOCABLE LIVING
+TRUST /u/a dated January 14th 1993 as amended, collectively referred to herein as “Lessor”, and
+Caron Broadcasting, Inc., an Ohio corporation (“Lessee”).`)).toEqual(true);
+      await loadingTask.destroy();
+    });
     it("gets text content, with beginbfrange operator handled correctly (bug 1627427)", async function () {
       const loadingTask = (0, _api.getDocument)((0, _test_utils.buildGetDocumentParams)("bug1627427_reduced.pdf"));
       const pdfDoc = await loadingTask.promise;
@@ -1519,6 +1715,44 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       } = await pdfPage.getTextContent();
       const text = mergeText(items);
       expect(text).toEqual("침하게 흐린 품이 눈이 올 듯하더니 눈은 아니 오고 얼다가 만 비가 추");
+      await loadingTask.destroy();
+    });
+    it("gets text content, and check that out-of-page text is not present (bug 1755201)", async function () {
+      if (_is_node.isNodeJS) {
+        pending("Linked test-cases are not supported in Node.js.");
+      }
+
+      const loadingTask = (0, _api.getDocument)((0, _test_utils.buildGetDocumentParams)("bug1755201.pdf"));
+      const pdfDoc = await loadingTask.promise;
+      const pdfPage = await pdfDoc.getPage(6);
+      const {
+        items
+      } = await pdfPage.getTextContent();
+      const text = mergeText(items);
+      expect(/win aisle/.test(text)).toEqual(false);
+      await loadingTask.destroy();
+    });
+    it("gets text content with or without includeMarkedContent, and compare (issue 15094)", async function () {
+      if (_is_node.isNodeJS) {
+        pending("Linked test-cases are not supported in Node.js.");
+      }
+
+      const loadingTask = (0, _api.getDocument)((0, _test_utils.buildGetDocumentParams)("pdf.pdf"));
+      const pdfDoc = await loadingTask.promise;
+      const pdfPage = await pdfDoc.getPage(568);
+      let {
+        items
+      } = await pdfPage.getTextContent({
+        includeMarkedContent: false
+      });
+      const textWithoutMC = mergeText(items);
+      ({
+        items
+      } = await pdfPage.getTextContent({
+        includeMarkedContent: true
+      }));
+      const textWithMC = mergeText(items);
+      expect(textWithoutMC).toEqual(textWithMC);
       await loadingTask.destroy();
     });
     it("gets empty structure tree", async function () {
@@ -1581,6 +1815,10 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       expect(operatorList.fnArray.length).toBeGreaterThan(100);
       expect(operatorList.argsArray.length).toBeGreaterThan(100);
       expect(operatorList.lastChunk).toEqual(true);
+      expect(operatorList.separateAnnots).toEqual({
+        form: false,
+        canvas: false
+      });
     });
     it("gets operatorList with JPEG image (issue 4888)", async function () {
       const loadingTask = (0, _api.getDocument)((0, _test_utils.buildGetDocumentParams)("cmykjpeg.pdf"));
@@ -1609,6 +1847,7 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
             expect(opList.fnArray.length).toBeGreaterThan(100);
             expect(opList.argsArray.length).toBeGreaterThan(100);
             expect(opList.lastChunk).toEqual(true);
+            expect(opList.separateAnnots).toEqual(null);
             return loadingTask1.destroy();
           });
         });
@@ -1619,6 +1858,7 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
             expect(opList.fnArray.length).toEqual(0);
             expect(opList.argsArray.length).toEqual(0);
             expect(opList.lastChunk).toEqual(true);
+            expect(opList.separateAnnots).toEqual(null);
             return loadingTask2.destroy();
           });
         });
@@ -1633,6 +1873,10 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       expect(operatorList.fnArray.length).toBeGreaterThan(20);
       expect(operatorList.argsArray.length).toBeGreaterThan(20);
       expect(operatorList.lastChunk).toEqual(true);
+      expect(operatorList.separateAnnots).toEqual({
+        form: false,
+        canvas: false
+      });
       expect(operatorList.fnArray.includes(_util.OPS.beginAnnotation)).toEqual(true);
       expect(operatorList.fnArray.includes(_util.OPS.endAnnotation)).toEqual(true);
       await loadingTask.destroy();
@@ -1653,24 +1897,46 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       expect(opListAnnotDisable.fnArray.length).toEqual(0);
       expect(opListAnnotDisable.argsArray.length).toEqual(0);
       expect(opListAnnotDisable.lastChunk).toEqual(true);
+      expect(opListAnnotDisable.separateAnnots).toEqual(null);
       const opListAnnotEnable = await pdfPage.getOperatorList({
         annotationMode: _util.AnnotationMode.ENABLE
       });
-      expect(opListAnnotEnable.fnArray.length).toBeGreaterThan(150);
-      expect(opListAnnotEnable.argsArray.length).toBeGreaterThan(150);
+      expect(opListAnnotEnable.fnArray.length).toBeGreaterThan(140);
+      expect(opListAnnotEnable.argsArray.length).toBeGreaterThan(140);
       expect(opListAnnotEnable.lastChunk).toEqual(true);
+      expect(opListAnnotEnable.separateAnnots).toEqual({
+        form: false,
+        canvas: true
+      });
+      let firstAnnotIndex = opListAnnotEnable.fnArray.indexOf(_util.OPS.beginAnnotation);
+      let isUsingOwnCanvas = opListAnnotEnable.argsArray[firstAnnotIndex][4];
+      expect(isUsingOwnCanvas).toEqual(false);
       const opListAnnotEnableForms = await pdfPage.getOperatorList({
         annotationMode: _util.AnnotationMode.ENABLE_FORMS
       });
-      expect(opListAnnotEnableForms.fnArray.length).toBeGreaterThan(40);
-      expect(opListAnnotEnableForms.argsArray.length).toBeGreaterThan(40);
+      expect(opListAnnotEnableForms.fnArray.length).toBeGreaterThan(30);
+      expect(opListAnnotEnableForms.argsArray.length).toBeGreaterThan(30);
       expect(opListAnnotEnableForms.lastChunk).toEqual(true);
+      expect(opListAnnotEnableForms.separateAnnots).toEqual({
+        form: true,
+        canvas: true
+      });
+      firstAnnotIndex = opListAnnotEnableForms.fnArray.indexOf(_util.OPS.beginAnnotation);
+      isUsingOwnCanvas = opListAnnotEnableForms.argsArray[firstAnnotIndex][4];
+      expect(isUsingOwnCanvas).toEqual(true);
       const opListAnnotEnableStorage = await pdfPage.getOperatorList({
         annotationMode: _util.AnnotationMode.ENABLE_STORAGE
       });
       expect(opListAnnotEnableStorage.fnArray.length).toBeGreaterThan(170);
       expect(opListAnnotEnableStorage.argsArray.length).toBeGreaterThan(170);
       expect(opListAnnotEnableStorage.lastChunk).toEqual(true);
+      expect(opListAnnotEnableStorage.separateAnnots).toEqual({
+        form: false,
+        canvas: true
+      });
+      firstAnnotIndex = opListAnnotEnableStorage.fnArray.indexOf(_util.OPS.beginAnnotation);
+      isUsingOwnCanvas = opListAnnotEnableStorage.argsArray[firstAnnotIndex][4];
+      expect(isUsingOwnCanvas).toEqual(false);
       expect(opListAnnotDisable.fnArray.length).toBeLessThan(opListAnnotEnableForms.fnArray.length);
       expect(opListAnnotEnableForms.fnArray.length).toBeLessThan(opListAnnotEnable.fnArray.length);
       expect(opListAnnotEnable.fnArray.length).toBeLessThan(opListAnnotEnableStorage.fnArray.length);
@@ -1732,6 +1998,7 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       const viewport = pdfPage.getViewport({
         scale: 1
       });
+      expect(viewport instanceof _display_utils.PageViewport).toEqual(true);
       const canvasAndCtx = CanvasFactory.create(viewport.width, viewport.height);
       const renderTask = pdfPage.render({
         canvasContext: canvasAndCtx.context,
@@ -1740,7 +2007,10 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       });
       expect(renderTask instanceof _api.RenderTask).toEqual(true);
       await renderTask.promise;
-      const stats = pdfPage.stats;
+      expect(renderTask.separateAnnots).toEqual(false);
+      const {
+        stats
+      } = pdfPage;
       expect(stats instanceof _display_utils.StatTimer).toEqual(true);
       expect(stats.times.length).toEqual(3);
       const [statEntryOne, statEntryTwo, statEntryThree] = stats.times;
@@ -1757,6 +2027,7 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       const viewport = page.getViewport({
         scale: 1
       });
+      expect(viewport instanceof _display_utils.PageViewport).toEqual(true);
       const canvasAndCtx = CanvasFactory.create(viewport.width, viewport.height);
       const renderTask = page.render({
         canvasContext: canvasAndCtx.context,
@@ -1781,6 +2052,7 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       const viewport = page.getViewport({
         scale: 1
       });
+      expect(viewport instanceof _display_utils.PageViewport).toEqual(true);
       const canvasAndCtx = CanvasFactory.create(viewport.width, viewport.height);
       const renderTask = page.render({
         canvasContext: canvasAndCtx.context,
@@ -1804,6 +2076,7 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       });
       expect(reRenderTask instanceof _api.RenderTask).toEqual(true);
       await reRenderTask.promise;
+      expect(reRenderTask.separateAnnots).toEqual(false);
       CanvasFactory.destroy(canvasAndCtx);
     });
     it("multiple render() on the same canvas", async function () {
@@ -1811,6 +2084,7 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       const viewport = page.getViewport({
         scale: 1
       });
+      expect(viewport instanceof _display_utils.PageViewport).toEqual(true);
       const canvasAndCtx = CanvasFactory.create(viewport.width, viewport.height);
       const renderTask1 = page.render({
         canvasContext: canvasAndCtx.context,
@@ -1839,6 +2113,7 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       const viewport = pdfPage.getViewport({
         scale: 1
       });
+      expect(viewport instanceof _display_utils.PageViewport).toEqual(true);
       const canvasAndCtx = CanvasFactory.create(viewport.width, viewport.height);
       const renderTask = pdfPage.render({
         canvasContext: canvasAndCtx.context,
@@ -1847,6 +2122,7 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       });
       expect(renderTask instanceof _api.RenderTask).toEqual(true);
       await renderTask.promise;
+      expect(renderTask.separateAnnots).toEqual(false);
       await pdfDoc.cleanup();
       expect(true).toEqual(true);
       CanvasFactory.destroy(canvasAndCtx);
@@ -1859,6 +2135,7 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       const viewport = pdfPage.getViewport({
         scale: 1
       });
+      expect(viewport instanceof _display_utils.PageViewport).toEqual(true);
       const canvasAndCtx = CanvasFactory.create(viewport.width, viewport.height);
       const renderTask = pdfPage.render({
         canvasContext: canvasAndCtx.context,
@@ -1880,6 +2157,7 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       }
 
       await renderTask.promise;
+      expect(renderTask.separateAnnots).toEqual(false);
       CanvasFactory.destroy(canvasAndCtx);
       await loadingTask.destroy();
     });
@@ -1939,6 +2217,53 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       await loadingTask.destroy();
       firstImgData = null;
     });
+    it("render for printing, with `printAnnotationStorage` set", async function () {
+      async function getPrintData(printAnnotationStorage = null) {
+        const canvasAndCtx = CanvasFactory.create(viewport.width, viewport.height);
+        const renderTask = pdfPage.render({
+          canvasContext: canvasAndCtx.context,
+          canvasFactory: CanvasFactory,
+          viewport,
+          intent: "print",
+          annotationMode: _util.AnnotationMode.ENABLE_STORAGE,
+          printAnnotationStorage
+        });
+        await renderTask.promise;
+        expect(renderTask.separateAnnots).toEqual(false);
+        const printData = canvasAndCtx.canvas.toDataURL();
+        CanvasFactory.destroy(canvasAndCtx);
+        return printData;
+      }
+
+      const loadingTask = (0, _api.getDocument)((0, _test_utils.buildGetDocumentParams)("annotation-tx.pdf"));
+      const pdfDoc = await loadingTask.promise;
+      const pdfPage = await pdfDoc.getPage(1);
+      const viewport = pdfPage.getViewport({
+        scale: 1
+      });
+      const {
+        annotationStorage
+      } = pdfDoc;
+      annotationStorage.setValue("22R", {
+        value: "Hello World"
+      });
+      const printOriginalData = await getPrintData();
+      const printAnnotationStorage = annotationStorage.print;
+      annotationStorage.setValue("22R", {
+        value: "Printing again..."
+      });
+
+      const annotationHash = _annotation_storage.AnnotationStorage.getHash(annotationStorage.serializable);
+
+      const printAnnotationHash = _annotation_storage.AnnotationStorage.getHash(printAnnotationStorage.serializable);
+
+      expect(printAnnotationHash).not.toEqual(annotationHash);
+      const printAgainData = await getPrintData();
+      const printStorageData = await getPrintData(printAnnotationStorage);
+      expect(printAgainData).not.toEqual(printOriginalData);
+      expect(printStorageData).toEqual(printOriginalData);
+      await loadingTask.destroy();
+    });
   });
   describe("Multiple `getDocument` instances", function () {
     const pdf1 = (0, _test_utils.buildGetDocumentParams)("tracemonkey.pdf");
@@ -1954,6 +2279,7 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       const viewport = page.getViewport({
         scale: 1.2
       });
+      expect(viewport instanceof _display_utils.PageViewport).toEqual(true);
       const canvasAndCtx = CanvasFactory.create(viewport.width, viewport.height);
       const renderTask = page.render({
         canvasContext: canvasAndCtx.context,
@@ -1961,6 +2287,7 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
         viewport
       });
       await renderTask.promise;
+      expect(renderTask.separateAnnots).toEqual(false);
       const data = canvasAndCtx.canvas.toDataURL();
       CanvasFactory.destroy(canvasAndCtx);
       return data;
@@ -2075,6 +2402,21 @@ sozialökonomische Gerechtigkeit.`)).toEqual(true);
       expect(pdfPage.rotate).toEqual(0);
       expect(fetches).toEqual(0);
       await loadingTask.destroy();
+    });
+  });
+  describe("PDFWorkerUtil", function () {
+    describe("isSameOrigin", function () {
+      const {
+        isSameOrigin
+      } = _api.PDFWorkerUtil;
+      it("handles invalid base URLs", function () {
+        expect(isSameOrigin("/foo", "/bar")).toEqual(false);
+        expect(isSameOrigin("blob:foo", "/bar")).toEqual(false);
+      });
+      it("correctly checks if the origin of both URLs matches", function () {
+        expect(isSameOrigin("https://www.mozilla.org/foo", "https://www.mozilla.org/bar")).toEqual(true);
+        expect(isSameOrigin("https://www.mozilla.org/foo", "https://www.example.com/bar")).toEqual(false);
+      });
     });
   });
 });

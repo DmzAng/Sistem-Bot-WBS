@@ -12,7 +12,6 @@ const visitPlanHandler = require("./src/handlers/visitPlanHandler");
 const visitExecutionHandler = require("./src/handlers/visitExecutionHandler");
 const pool = require('./config/database');
 
-//check perubahan
 async function testDbConnection() {
   try {
     const res = await pool.query("SELECT 1");

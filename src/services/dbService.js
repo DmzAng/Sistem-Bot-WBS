@@ -105,6 +105,7 @@ module.exports = {
     );
     return rows.map((row) => row.kegiatan);
   },
+  
 
   getMonthlyAttendanceForEntity: async (entityType, year, month) => {
     const tableName = `absen_${entityType.toLowerCase()}`;

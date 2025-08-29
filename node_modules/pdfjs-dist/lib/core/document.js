@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -26,17 +26,15 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.Page = exports.PDFDocument = void 0;
 
-var _util = require("../shared/util.js");
+var _annotation = require("./annotation.js");
 
-var _primitives = require("./primitives.js");
+var _util = require("../shared/util.js");
 
 var _core_utils = require("./core_utils.js");
 
+var _primitives = require("./primitives.js");
+
 var _xfa_fonts = require("./xfa_fonts.js");
-
-var _stream = require("./stream.js");
-
-var _annotation = require("./annotation.js");
 
 var _base_stream = require("./base_stream.js");
 
@@ -44,7 +42,13 @@ var _crypto = require("./crypto.js");
 
 var _catalog = require("./catalog.js");
 
+var _cleanup_helper = require("./cleanup_helper.js");
+
+var _dataset_reader = require("./dataset_reader.js");
+
 var _parser = require("./parser.js");
+
+var _stream = require("./stream.js");
 
 var _object_loader = require("./object_loader.js");
 
@@ -55,6 +59,8 @@ var _evaluator = require("./evaluator.js");
 var _decode_stream = require("./decode_stream.js");
 
 var _struct_tree = require("./struct_tree.js");
+
+var _writer = require("./writer.js");
 
 var _factory = require("./xfa/factory.js");
 
@@ -118,7 +124,7 @@ class Page {
       return value;
     }
 
-    if (value.length === 1 || !(0, _primitives.isDict)(value[0])) {
+    if (value.length === 1 || !(value[0] instanceof _primitives.Dict)) {
       return value[0];
     }
 
@@ -133,7 +139,9 @@ class Page {
   }
 
   get resources() {
-    return (0, _util.shadow)(this, "resources", this._getInheritableProperty("Resources") || _primitives.Dict.empty);
+    const resources = this._getInheritableProperty("Resources");
+
+    return (0, _util.shadow)(this, "resources", resources instanceof _primitives.Dict ? resources : _primitives.Dict.empty);
   }
 
   _getBoundingBox(name) {
@@ -165,7 +173,7 @@ class Page {
   get userUnit() {
     let obj = this.pageDict.get("UserUnit");
 
-    if (!(0, _util.isNum)(obj) || obj <= 0) {
+    if (typeof obj !== "number" || obj <= 0) {
       obj = DEFAULT_USER_UNIT;
     }
 
@@ -240,6 +248,55 @@ class Page {
     } : null);
   }
 
+  async saveNewAnnotations(handler, task, annotations) {
+    if (this.xfaFactory) {
+      throw new Error("XFA: Cannot save new annotations.");
+    }
+
+    const partialEvaluator = new _evaluator.PartialEvaluator({
+      xref: this.xref,
+      handler,
+      pageIndex: this.pageIndex,
+      idFactory: this._localIdFactory,
+      fontCache: this.fontCache,
+      builtInCMapCache: this.builtInCMapCache,
+      standardFontDataCache: this.standardFontDataCache,
+      globalImageCache: this.globalImageCache,
+      options: this.evaluatorOptions
+    });
+    const pageDict = this.pageDict;
+    const annotationsArray = this.annotations.slice();
+    const newData = await _annotation.AnnotationFactory.saveNewAnnotations(partialEvaluator, task, annotations);
+
+    for (const {
+      ref
+    } of newData.annotations) {
+      annotationsArray.push(ref);
+    }
+
+    const savedDict = pageDict.get("Annots");
+    pageDict.set("Annots", annotationsArray);
+    const buffer = [];
+    let transform = null;
+
+    if (this.xref.encrypt) {
+      transform = this.xref.encrypt.createCipherTransform(this.ref.num, this.ref.gen);
+    }
+
+    (0, _writer.writeObject)(this.ref, pageDict, buffer, transform);
+
+    if (savedDict) {
+      pageDict.set("Annots", savedDict);
+    }
+
+    const objects = newData.dependencies;
+    objects.push({
+      ref: this.ref,
+      data: buffer.join("")
+    }, ...newData.annotations);
+    return objects;
+  }
+
   save(handler, task, annotationStorage) {
     const partialEvaluator = new _evaluator.PartialEvaluator({
       xref: this.xref,
@@ -266,7 +323,9 @@ class Page {
         }));
       }
 
-      return Promise.all(newRefsPromises);
+      return Promise.all(newRefsPromises).then(function (newRefs) {
+        return newRefs.filter(newRef => !!newRef);
+      });
     });
   }
 
@@ -302,6 +361,17 @@ class Page {
       globalImageCache: this.globalImageCache,
       options: this.evaluatorOptions
     });
+    const newAnnotationsByPage = !this.xfaFactory ? (0, _core_utils.getNewAnnotationsMap)(annotationStorage) : null;
+    let newAnnotationsPromise = Promise.resolve(null);
+
+    if (newAnnotationsByPage) {
+      const newAnnotations = newAnnotationsByPage.get(this.pageIndex);
+
+      if (newAnnotations) {
+        newAnnotationsPromise = _annotation.AnnotationFactory.printNewAnnotations(partialEvaluator, task, newAnnotations);
+      }
+    }
+
     const dataPromises = Promise.all([contentStreamPromise, resourcesPromise]);
     const pageListPromise = dataPromises.then(([contentStream]) => {
       const opList = new _operator_list.OperatorList(intent, sink);
@@ -319,7 +389,11 @@ class Page {
         return opList;
       });
     });
-    return Promise.all([pageListPromise, this._parsedAnnotations]).then(function ([pageOpList, annotations]) {
+    return Promise.all([pageListPromise, this._parsedAnnotations, newAnnotationsPromise]).then(function ([pageOpList, annotations, newAnnotations]) {
+      if (newAnnotations) {
+        annotations = annotations.concat(newAnnotations);
+      }
+
       if (annotations.length === 0 || intent & _util.RenderingIntentFlag.ANNOTATIONS_DISABLE) {
         pageOpList.flush(true);
         return {
@@ -343,14 +417,29 @@ class Page {
       }
 
       return Promise.all(opListPromises).then(function (opLists) {
-        pageOpList.addOp(_util.OPS.beginAnnotations, []);
+        let form = false,
+            canvas = false;
 
-        for (const opList of opLists) {
+        for (const {
+          opList,
+          separateForm,
+          separateCanvas
+        } of opLists) {
           pageOpList.addOpList(opList);
+
+          if (separateForm) {
+            form = separateForm;
+          }
+
+          if (separateCanvas) {
+            canvas = separateCanvas;
+          }
         }
 
-        pageOpList.addOp(_util.OPS.endAnnotations, []);
-        pageOpList.flush(true);
+        pageOpList.flush(true, {
+          form,
+          canvas
+        });
         return {
           length: pageOpList.totalLength
         };
@@ -361,7 +450,6 @@ class Page {
   extractTextContent({
     handler,
     task,
-    normalizeWhitespace,
     includeMarkedContent,
     sink,
     combineTextItems
@@ -385,10 +473,10 @@ class Page {
         stream: contentStream,
         task,
         resources: this.resources,
-        normalizeWhitespace,
         includeMarkedContent,
         combineTextItems,
-        sink
+        sink,
+        viewBox: this.view
       });
     });
   }
@@ -410,26 +498,50 @@ class Page {
     return tree;
   }
 
-  getAnnotationsData(intent) {
-    return this._parsedAnnotations.then(function (annotations) {
-      const annotationsData = [];
+  async getAnnotationsData(handler, task, intent) {
+    const annotations = await this._parsedAnnotations;
 
-      if (annotations.length === 0) {
-        return annotationsData;
+    if (annotations.length === 0) {
+      return [];
+    }
+
+    const textContentPromises = [];
+    const annotationsData = [];
+    let partialEvaluator;
+    const intentAny = !!(intent & _util.RenderingIntentFlag.ANY),
+          intentDisplay = !!(intent & _util.RenderingIntentFlag.DISPLAY),
+          intentPrint = !!(intent & _util.RenderingIntentFlag.PRINT);
+
+    for (const annotation of annotations) {
+      const isVisible = intentAny || intentDisplay && annotation.viewable;
+
+      if (isVisible || intentPrint && annotation.printable) {
+        annotationsData.push(annotation.data);
       }
 
-      const intentAny = !!(intent & _util.RenderingIntentFlag.ANY),
-            intentDisplay = !!(intent & _util.RenderingIntentFlag.DISPLAY),
-            intentPrint = !!(intent & _util.RenderingIntentFlag.PRINT);
-
-      for (const annotation of annotations) {
-        if (intentAny || intentDisplay && annotation.viewable || intentPrint && annotation.printable) {
-          annotationsData.push(annotation.data);
+      if (annotation.hasTextContent && isVisible) {
+        if (!partialEvaluator) {
+          partialEvaluator = new _evaluator.PartialEvaluator({
+            xref: this.xref,
+            handler,
+            pageIndex: this.pageIndex,
+            idFactory: this._localIdFactory,
+            fontCache: this.fontCache,
+            builtInCMapCache: this.builtInCMapCache,
+            standardFontDataCache: this.standardFontDataCache,
+            globalImageCache: this.globalImageCache,
+            options: this.evaluatorOptions
+          });
         }
-      }
 
-      return annotationsData;
-    });
+        textContentPromises.push(annotation.extractTextContent(partialEvaluator, task, this.view).catch(function (reason) {
+          (0, _util.warn)(`getAnnotationsData - ignoring textContent during "${task.name}" task: "${reason}".`);
+        }));
+      }
+    }
+
+    await Promise.all(textContentPromises);
+    return annotationsData;
   }
 
   get annotations() {
@@ -450,7 +562,35 @@ class Page {
       }
 
       return Promise.all(annotationPromises).then(function (annotations) {
-        return annotations.filter(annotation => !!annotation);
+        if (annotations.length === 0) {
+          return annotations;
+        }
+
+        const sortedAnnotations = [];
+        let popupAnnotations;
+
+        for (const annotation of annotations) {
+          if (!annotation) {
+            continue;
+          }
+
+          if (annotation instanceof _annotation.PopupAnnotation) {
+            if (!popupAnnotations) {
+              popupAnnotations = [];
+            }
+
+            popupAnnotations.push(annotation);
+            continue;
+          }
+
+          sortedAnnotations.push(annotation);
+        }
+
+        if (popupAnnotations) {
+          sortedAnnotations.push(...popupAnnotations);
+        }
+
+        return sortedAnnotations;
       });
     });
     return (0, _util.shadow)(this, "_parsedAnnotations", parsedAnnotations);
@@ -521,17 +661,7 @@ function find(stream, signature, limit = 1024, backwards = false) {
 }
 
 class PDFDocument {
-  constructor(pdfManager, arg) {
-    let stream;
-
-    if ((0, _primitives.isStream)(arg)) {
-      stream = arg;
-    } else if ((0, _util.isArrayBuffer)(arg)) {
-      stream = new _stream.Stream(arg);
-    } else {
-      throw new Error("PDFDocument: Unknown argument type");
-    }
-
+  constructor(pdfManager, stream) {
     if (stream.length <= 0) {
       throw new _util.InvalidPDFException("The PDF file is empty, i.e. its size is zero bytes.");
     }
@@ -718,7 +848,7 @@ class PDFDocument {
     });
   }
 
-  get xfaData() {
+  get _xfaStreams() {
     const acroForm = this.catalog.acroForm;
 
     if (!acroForm) {
@@ -737,14 +867,9 @@ class PDFDocument {
       "/xdp:xdp": ""
     };
 
-    if ((0, _primitives.isStream)(xfa) && !xfa.isEmpty) {
-      try {
-        entries["xdp:xdp"] = (0, _util.stringToUTF8String)(xfa.getString());
-        return entries;
-      } catch (_) {
-        (0, _util.warn)("XFA - Invalid utf-8 string.");
-        return null;
-      }
+    if (xfa instanceof _base_stream.BaseStream && !xfa.isEmpty) {
+      entries["xdp:xdp"] = xfa;
+      return entries;
     }
 
     if (!Array.isArray(xfa) || xfa.length === 0) {
@@ -768,19 +893,68 @@ class PDFDocument {
 
       const data = this.xref.fetchIfRef(xfa[i + 1]);
 
-      if (!(0, _primitives.isStream)(data) || data.isEmpty) {
+      if (!(data instanceof _base_stream.BaseStream) || data.isEmpty) {
+        continue;
+      }
+
+      entries[name] = data;
+    }
+
+    return entries;
+  }
+
+  get xfaDatasets() {
+    const streams = this._xfaStreams;
+
+    if (!streams) {
+      return (0, _util.shadow)(this, "xfaDatasets", null);
+    }
+
+    for (const key of ["datasets", "xdp:xdp"]) {
+      const stream = streams[key];
+
+      if (!stream) {
         continue;
       }
 
       try {
-        entries[name] = (0, _util.stringToUTF8String)(data.getString());
+        const str = (0, _util.stringToUTF8String)(stream.getString());
+        const data = {
+          [key]: str
+        };
+        return (0, _util.shadow)(this, "xfaDatasets", new _dataset_reader.DatasetReader(data));
+      } catch (_) {
+        (0, _util.warn)("XFA - Invalid utf-8 string.");
+        break;
+      }
+    }
+
+    return (0, _util.shadow)(this, "xfaDatasets", null);
+  }
+
+  get xfaData() {
+    const streams = this._xfaStreams;
+
+    if (!streams) {
+      return null;
+    }
+
+    const data = Object.create(null);
+
+    for (const [key, stream] of Object.entries(streams)) {
+      if (!stream) {
+        continue;
+      }
+
+      try {
+        data[key] = (0, _util.stringToUTF8String)(stream.getString());
       } catch (_) {
         (0, _util.warn)("XFA - Invalid utf-8 string.");
         return null;
       }
     }
 
-    return entries;
+    return data;
   }
 
   get xfaFactory() {
@@ -816,11 +990,9 @@ class PDFDocument {
     for (const key of keys) {
       const stream = xfaImagesDict.get(key);
 
-      if (!(0, _primitives.isStream)(stream)) {
-        continue;
+      if (stream instanceof _base_stream.BaseStream) {
+        xfaImages.set(key, stream.getBytes());
       }
-
-      xfaImages.set(key, stream.getBytes());
     }
 
     this.xfaFactory.setImages(xfaImages);
@@ -863,7 +1035,7 @@ class PDFDocument {
     const pdfFonts = [];
     const initialState = {
       get font() {
-        return pdfFonts[pdfFonts.length - 1];
+        return pdfFonts.at(-1);
       },
 
       set font(font) {
@@ -991,7 +1163,7 @@ class PDFDocument {
       const hasFields = Array.isArray(fields) && fields.length > 0;
       formInfo.hasFields = hasFields;
       const xfa = acroForm.get("XFA");
-      formInfo.hasXfa = Array.isArray(xfa) && xfa.length > 0 || (0, _primitives.isStream)(xfa) && !xfa.isEmpty;
+      formInfo.hasXfa = Array.isArray(xfa) && xfa.length > 0 || xfa instanceof _base_stream.BaseStream && !xfa.isEmpty;
       const sigFlags = acroForm.get("SigFlags");
       const hasSignatures = !!(sigFlags & 0x1);
 
@@ -1011,17 +1183,6 @@ class PDFDocument {
   }
 
   get documentInfo() {
-    const DocumentInfoValidators = {
-      Title: _util.isString,
-      Author: _util.isString,
-      Subject: _util.isString,
-      Keywords: _util.isString,
-      Creator: _util.isString,
-      Producer: _util.isString,
-      CreationDate: _util.isString,
-      ModDate: _util.isString,
-      Trapped: _primitives.isName
-    };
     let version = this._version;
 
     if (typeof version !== "string" || !PDF_HEADER_VERSION_REGEXP.test(version)) {
@@ -1051,25 +1212,60 @@ class PDFDocument {
       (0, _util.info)("The document information dictionary is invalid.");
     }
 
-    if ((0, _primitives.isDict)(infoDict)) {
-      for (const key of infoDict.getKeys()) {
-        const value = infoDict.get(key);
+    if (!(infoDict instanceof _primitives.Dict)) {
+      return (0, _util.shadow)(this, "documentInfo", docInfo);
+    }
 
-        if (DocumentInfoValidators[key]) {
-          if (DocumentInfoValidators[key](value)) {
-            docInfo[key] = typeof value !== "string" ? value : (0, _util.stringToPDFString)(value);
-          } else {
-            (0, _util.info)(`Bad value in document info for "${key}".`);
+    for (const key of infoDict.getKeys()) {
+      const value = infoDict.get(key);
+
+      switch (key) {
+        case "Title":
+        case "Author":
+        case "Subject":
+        case "Keywords":
+        case "Creator":
+        case "Producer":
+        case "CreationDate":
+        case "ModDate":
+          if (typeof value === "string") {
+            docInfo[key] = (0, _util.stringToPDFString)(value);
+            continue;
           }
-        } else if (typeof key === "string") {
+
+          break;
+
+        case "Trapped":
+          if (value instanceof _primitives.Name) {
+            docInfo[key] = value;
+            continue;
+          }
+
+          break;
+
+        default:
           let customValue;
 
-          if ((0, _util.isString)(value)) {
-            customValue = (0, _util.stringToPDFString)(value);
-          } else if ((0, _primitives.isName)(value) || (0, _util.isNum)(value) || (0, _util.isBool)(value)) {
-            customValue = value;
-          } else {
-            (0, _util.info)(`Unsupported value in document info for (custom) "${key}".`);
+          switch (typeof value) {
+            case "string":
+              customValue = (0, _util.stringToPDFString)(value);
+              break;
+
+            case "number":
+            case "boolean":
+              customValue = value;
+              break;
+
+            default:
+              if (value instanceof _primitives.Name) {
+                customValue = value;
+              }
+
+              break;
+          }
+
+          if (customValue === undefined) {
+            (0, _util.warn)(`Bad value, for custom key "${key}", in Info: ${value}.`);
             continue;
           }
 
@@ -1078,8 +1274,10 @@ class PDFDocument {
           }
 
           docInfo.Custom[key] = customValue;
-        }
+          continue;
       }
+
+      (0, _util.warn)(`Bad value, for key "${key}", in Info: ${value}.`);
     }
 
     return (0, _util.shadow)(this, "documentInfo", docInfo);
@@ -1120,25 +1318,38 @@ class PDFDocument {
   async _getLinearizationPage(pageIndex) {
     const {
       catalog,
-      linearization
+      linearization,
+      xref
     } = this;
 
     const ref = _primitives.Ref.get(linearization.objectNumberFirst, 0);
 
     try {
-      const obj = await this.xref.fetchAsync(ref);
+      const obj = await xref.fetchAsync(ref);
 
-      if ((0, _primitives.isDict)(obj, "Page") || (0, _primitives.isDict)(obj) && !obj.has("Type") && obj.has("Contents")) {
-        if (ref && !catalog.pageKidsCountCache.has(ref)) {
-          catalog.pageKidsCountCache.put(ref, 1);
+      if (obj instanceof _primitives.Dict) {
+        let type = obj.getRaw("Type");
+
+        if (type instanceof _primitives.Ref) {
+          type = await xref.fetchAsync(type);
         }
 
-        return [obj, ref];
+        if ((0, _primitives.isName)(type, "Page") || !obj.has("Type") && !obj.has("Kids")) {
+          if (!catalog.pageKidsCountCache.has(ref)) {
+            catalog.pageKidsCountCache.put(ref, 1);
+          }
+
+          if (!catalog.pageIndexCache.has(ref)) {
+            catalog.pageIndexCache.put(ref, 0);
+          }
+
+          return [obj, ref];
+        }
       }
 
       throw new _util.FormatError("The Linearization dictionary doesn't point to a valid Page dictionary.");
     } catch (reason) {
-      (0, _util.info)(reason);
+      (0, _util.warn)(`_getLinearizationPage: "${reason.message}".`);
       return catalog.getPageDict(pageIndex);
     }
   }
@@ -1243,7 +1454,7 @@ class PDFDocument {
       let pagesTree;
 
       try {
-        pagesTree = await pdfManager.ensureCatalog("getAllPageDicts", [recoveryMode]);
+        pagesTree = await catalog.getAllPageDicts(recoveryMode);
       } catch (reasonAll) {
         if (reasonAll instanceof _core_utils.XRefEntryException && !recoveryMode) {
           throw new _core_utils.XRefParseException();
@@ -1288,7 +1499,7 @@ class PDFDocument {
   }
 
   async cleanup(manuallyTriggered = false) {
-    return this.catalog ? this.catalog.cleanup(manuallyTriggered) : (0, _primitives.clearPrimitiveCaches)();
+    return this.catalog ? this.catalog.cleanup(manuallyTriggered) : (0, _cleanup_helper.clearGlobalCaches)();
   }
 
   _collectFieldObjects(name, fieldRef, promises) {
@@ -1381,7 +1592,13 @@ class PDFDocument {
       return (0, _util.shadow)(this, "calculationOrderIds", null);
     }
 
-    const ids = calculationOrder.filter(_primitives.isRef).map(ref => ref.toString());
+    const ids = [];
+
+    for (const id of calculationOrder) {
+      if (id instanceof _primitives.Ref) {
+        ids.push(id.toString());
+      }
+    }
 
     if (ids.length === 0) {
       return (0, _util.shadow)(this, "calculationOrderIds", null);

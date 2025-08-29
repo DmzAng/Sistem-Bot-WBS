@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -30,7 +30,11 @@ var _util = require("../shared/util.js");
 
 var _primitives = require("./primitives.js");
 
+var _core_utils = require("./core_utils.js");
+
 var _pdf_manager = require("./pdf_manager.js");
+
+var _cleanup_helper = require("./cleanup_helper.js");
 
 var _writer = require("./writer.js");
 
@@ -39,8 +43,6 @@ var _is_node = require("../shared/is_node.js");
 var _message_handler = require("../shared/message_handler.js");
 
 var _worker_stream = require("./worker_stream.js");
-
-var _core_utils = require("./core_utils.js");
 
 class WorkerTask {
   constructor(name) {
@@ -80,7 +82,7 @@ class WorkerMessageHandler {
       }
 
       testMessageProcessed = true;
-      handler.send("test", data instanceof Uint8Array && data[0] === 255);
+      handler.send("test", data instanceof Uint8Array);
     });
     handler.on("configure", function wphConfigure(data) {
       (0, _util.setVerbosityLevel)(data.verbosity);
@@ -97,7 +99,7 @@ class WorkerMessageHandler {
     const WorkerTasks = [];
     const verbosity = (0, _util.getVerbosityLevel)();
     const apiVersion = docParams.apiVersion;
-    const workerVersion = '2.12.313';
+    const workerVersion = '2.16.105';
 
     if (apiVersion !== workerVersion) {
       throw new Error(`The API version "${apiVersion}" does not match ` + `the Worker version "${workerVersion}".`);
@@ -114,7 +116,13 @@ class WorkerMessageHandler {
     }
 
     if (typeof ReadableStream === "undefined") {
-      throw new Error("The browser/environment lacks native support for critical " + "functionality used by the PDF.js library (e.g. `ReadableStream`); " + "please use a `legacy`-build instead.");
+      const partialMsg = "The browser/environment lacks native support for critical " + "functionality used by the PDF.js library (e.g. `ReadableStream`); ";
+
+      if (_is_node.isNodeJS) {
+        throw new Error(partialMsg + "please use a `legacy`-build instead.");
+      }
+
+      throw new Error(partialMsg + "please update to a supported browser.");
     }
 
     const docId = docParams.docId;
@@ -202,8 +210,8 @@ class WorkerMessageHandler {
           rangeChunkSize: source.rangeChunkSize
         }, evaluatorOptions, enableXfa, docBaseUrl);
 
-        for (let i = 0; i < cachedChunks.length; i++) {
-          newPdfManager.sendProgressiveData(cachedChunks[i]);
+        for (const chunk of cachedChunks) {
+          newPdfManager.sendProgressiveData(chunk);
         }
 
         cachedChunks = [];
@@ -371,10 +379,8 @@ class WorkerMessageHandler {
         });
       });
     });
-    handler.on("GetPageIndex", function wphSetupGetPageIndex({
-      ref
-    }) {
-      const pageRef = _primitives.Ref.get(ref.num, ref.gen);
+    handler.on("GetPageIndex", function wphSetupGetPageIndex(data) {
+      const pageRef = _primitives.Ref.get(data.num, data.gen);
 
       return pdfManager.ensureCatalog("getPageIndex", [pageRef]);
     });
@@ -441,7 +447,14 @@ class WorkerMessageHandler {
       intent
     }) {
       return pdfManager.getPage(pageIndex).then(function (page) {
-        return page.getAnnotationsData(intent);
+        const task = new WorkerTask(`GetAnnotations: page ${pageIndex}`);
+        startWorkerTask(task);
+        return page.getAnnotationsData(handler, task, intent).then(data => {
+          finishWorkerTask(task);
+          return data;
+        }, reason => {
+          finishWorkerTask(task);
+        });
       });
     });
     handler.on("GetFieldObjects", function (data) {
@@ -460,7 +473,19 @@ class WorkerMessageHandler {
       filename
     }) {
       pdfManager.requestLoadedStream();
+      const newAnnotationsByPage = !isPureXfa ? (0, _core_utils.getNewAnnotationsMap)(annotationStorage) : null;
       const promises = [pdfManager.onLoadedStream(), pdfManager.ensureCatalog("acroForm"), pdfManager.ensureCatalog("acroFormRef"), pdfManager.ensureDoc("xref"), pdfManager.ensureDoc("startXRef")];
+
+      if (newAnnotationsByPage) {
+        for (const [pageIndex, annotations] of newAnnotationsByPage) {
+          promises.push(pdfManager.getPage(pageIndex).then(page => {
+            const task = new WorkerTask(`Save (editor): page ${pageIndex}`);
+            return page.saveNewAnnotations(handler, task, annotations).finally(function () {
+              finishWorkerTask(task);
+            });
+          }));
+        }
+      }
 
       if (isPureXfa) {
         promises.push(pdfManager.serializeXfaData(annotationStorage));
@@ -486,9 +511,7 @@ class WorkerMessageHandler {
             return stream.bytes;
           }
         } else {
-          for (const ref of refs) {
-            newRefs = ref.filter(x => x !== null).reduce((a, b) => a.concat(b), newRefs);
-          }
+          newRefs = refs.flat(2);
 
           if (newRefs.length === 0) {
             return stream.bytes;
@@ -524,7 +547,7 @@ class WorkerMessageHandler {
 
           if (xrefInfo instanceof _primitives.Dict) {
             xrefInfo.forEach((key, value) => {
-              if ((0, _util.isString)(key) && (0, _util.isString)(value)) {
+              if (typeof value === "string") {
                 infoObj[key] = (0, _util.stringToPDFString)(value);
               }
             });
@@ -602,7 +625,6 @@ class WorkerMessageHandler {
           handler,
           task,
           sink,
-          normalizeWhitespace: data.normalizeWhitespace,
           includeMarkedContent: data.includeMarkedContent,
           combineTextItems: data.combineTextItems
         }).then(function () {
@@ -645,7 +667,7 @@ class WorkerMessageHandler {
         waitOn.push(cleanupPromise);
         pdfManager = null;
       } else {
-        (0, _primitives.clearPrimitiveCaches)();
+        (0, _cleanup_helper.clearGlobalCaches)();
       }
 
       if (cancelXHRs) {

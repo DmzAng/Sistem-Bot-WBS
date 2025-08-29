@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -29,13 +29,9 @@ exports.clearPrimitiveCaches = clearPrimitiveCaches;
 exports.isCmd = isCmd;
 exports.isDict = isDict;
 exports.isName = isName;
-exports.isRef = isRef;
 exports.isRefsEqual = isRefsEqual;
-exports.isStream = isStream;
 
 var _util = require("../shared/util.js");
-
-var _base_stream = require("./base_stream.js");
 
 const CIRCULAR_REF = Symbol("CIRCULAR_REF");
 exports.CIRCULAR_REF = CIRCULAR_REF;
@@ -51,8 +47,7 @@ const Name = function NameClosure() {
     }
 
     static get(name) {
-      const nameValue = nameCache[name];
-      return nameValue ? nameValue : nameCache[name] = new Name(name);
+      return nameCache[name] || (nameCache[name] = new Name(name));
     }
 
     static _clearCache() {
@@ -75,8 +70,7 @@ const Cmd = function CmdClosure() {
     }
 
     static get(cmd) {
-      const cmdValue = cmdCache[cmd];
-      return cmdValue ? cmdValue : cmdCache[cmd] = new Cmd(cmd);
+      return cmdCache[cmd] || (cmdCache[cmd] = new Cmd(cmd));
     }
 
     static _clearCache() {
@@ -286,8 +280,7 @@ const Ref = function RefClosure() {
 
     static get(num, gen) {
       const key = gen === 0 ? `${num}R` : `${num}R${gen}`;
-      const refValue = refCache[key];
-      return refValue ? refValue : refCache[key] = new Ref(num, gen);
+      return refCache[key] || (refCache[key] = new Ref(num, gen));
     }
 
     static _clearCache() {
@@ -318,10 +311,8 @@ class RefSet {
     this._set.delete(ref.toString());
   }
 
-  forEach(callback) {
-    for (const ref of this._set.values()) {
-      callback(ref);
-    }
+  [Symbol.iterator]() {
+    return this._set.values();
   }
 
   clear() {
@@ -357,10 +348,8 @@ class RefSetCache {
     this._map.set(ref.toString(), this.get(aliasRef));
   }
 
-  forEach(callback) {
-    for (const value of this._map.values()) {
-      callback(value);
-    }
+  [Symbol.iterator]() {
+    return this._map.values();
   }
 
   clear() {
@@ -383,16 +372,8 @@ function isDict(v, type) {
   return v instanceof Dict && (type === undefined || isName(v.get("Type"), type));
 }
 
-function isRef(v) {
-  return v instanceof Ref;
-}
-
 function isRefsEqual(v1, v2) {
   return v1.num === v2.num && v1.gen === v2.gen;
-}
-
-function isStream(v) {
-  return v instanceof _base_stream.BaseStream;
 }
 
 function clearPrimitiveCaches() {

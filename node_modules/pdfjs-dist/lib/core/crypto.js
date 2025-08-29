@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -851,7 +851,7 @@ class AESBaseCipher {
     let outputLength = 16 * result.length;
 
     if (finalize) {
-      const lastBlock = result[result.length - 1];
+      const lastBlock = result.at(-1);
       let psLen = lastBlock[15];
 
       if (psLen <= 16) {
@@ -1103,7 +1103,7 @@ const PDF20 = function PDF20Closure() {
     let e = [0];
     let i = 0;
 
-    while (i < 64 || e[e.length - 1] > i - 32) {
+    while (i < 64 || e.at(-1) > i - 32) {
       const combinedLength = password.length + k.length + userBytes.length,
             combinedArray = new Uint8Array(combinedLength);
       let writeOffset = 0;
@@ -1441,7 +1441,7 @@ const CipherTransformFactory = function CipherTransformFactoryClosure() {
   }
 
   function buildCipherConstructor(cf, name, num, gen, key) {
-    if (!(0, _primitives.isName)(name)) {
+    if (!(name instanceof _primitives.Name)) {
       throw new _util.FormatError("Invalid crypt filter name.");
     }
 
@@ -1505,7 +1505,7 @@ const CipherTransformFactory = function CipherTransformFactoryClosure() {
           const cfDict = dict.get("CF");
           const streamCryptoName = dict.get("StmF");
 
-          if ((0, _primitives.isDict)(cfDict) && (0, _primitives.isName)(streamCryptoName)) {
+          if (cfDict instanceof _primitives.Dict && streamCryptoName instanceof _primitives.Name) {
             cfDict.suppressEncryption = true;
             const handlerDict = cfDict.get(streamCryptoName.name);
             keyLength = handlerDict && handlerDict.get("Length") || 128;
@@ -1574,7 +1574,7 @@ const CipherTransformFactory = function CipherTransformFactoryClosure() {
       if (algorithm >= 4) {
         const cf = dict.get("CF");
 
-        if ((0, _primitives.isDict)(cf)) {
+        if (cf instanceof _primitives.Dict) {
           cf.suppressEncryption = true;
         }
 
@@ -1587,7 +1587,7 @@ const CipherTransformFactory = function CipherTransformFactoryClosure() {
 
     createCipherTransform(num, gen) {
       if (this.algorithm === 4 || this.algorithm === 5) {
-        return new CipherTransform(buildCipherConstructor(this.cf, this.stmf, num, gen, this.encryptionKey), buildCipherConstructor(this.cf, this.strf, num, gen, this.encryptionKey));
+        return new CipherTransform(buildCipherConstructor(this.cf, this.strf, num, gen, this.encryptionKey), buildCipherConstructor(this.cf, this.stmf, num, gen, this.encryptionKey));
       }
 
       const key = buildObjectKey(num, gen, this.encryptionKey, false);

@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,36 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
   value: true
+});
+Object.defineProperty(exports, "AnnotationEditorLayer", {
+  enumerable: true,
+  get: function () {
+    return _annotation_editor_layer.AnnotationEditorLayer;
+  }
+});
+Object.defineProperty(exports, "AnnotationEditorParamsType", {
+  enumerable: true,
+  get: function () {
+    return _util.AnnotationEditorParamsType;
+  }
+});
+Object.defineProperty(exports, "AnnotationEditorType", {
+  enumerable: true,
+  get: function () {
+    return _util.AnnotationEditorType;
+  }
+});
+Object.defineProperty(exports, "AnnotationEditorUIManager", {
+  enumerable: true,
+  get: function () {
+    return _tools.AnnotationEditorUIManager;
+  }
 });
 Object.defineProperty(exports, "AnnotationLayer", {
   enumerable: true,
@@ -52,12 +76,6 @@ Object.defineProperty(exports, "InvalidPDFException", {
   enumerable: true,
   get: function () {
     return _util.InvalidPDFException;
-  }
-});
-Object.defineProperty(exports, "LinkTarget", {
-  enumerable: true,
-  get: function () {
-    return _display_utils.LinkTarget;
   }
 });
 Object.defineProperty(exports, "LoopbackPort", {
@@ -156,22 +174,10 @@ Object.defineProperty(exports, "XfaLayer", {
     return _xfa_layer.XfaLayer;
   }
 });
-Object.defineProperty(exports, "addLinkAttributes", {
-  enumerable: true,
-  get: function () {
-    return _display_utils.addLinkAttributes;
-  }
-});
 Object.defineProperty(exports, "build", {
   enumerable: true,
   get: function () {
     return _api.build;
-  }
-});
-Object.defineProperty(exports, "createObjectURL", {
-  enumerable: true,
-  get: function () {
-    return _util.createObjectURL;
   }
 });
 Object.defineProperty(exports, "createPromiseCapability", {
@@ -222,12 +228,6 @@ Object.defineProperty(exports, "loadScript", {
     return _display_utils.loadScript;
   }
 });
-Object.defineProperty(exports, "removeNullCharacters", {
-  enumerable: true,
-  get: function () {
-    return _util.removeNullCharacters;
-  }
-});
 Object.defineProperty(exports, "renderTextLayer", {
   enumerable: true,
   get: function () {
@@ -247,11 +247,15 @@ Object.defineProperty(exports, "version", {
   }
 });
 
-var _display_utils = require("./display/display_utils.js");
-
 var _util = require("./shared/util.js");
 
 var _api = require("./display/api.js");
+
+var _display_utils = require("./display/display_utils.js");
+
+var _annotation_editor_layer = require("./display/editor/annotation_editor_layer.js");
+
+var _tools = require("./display/editor/tools.js");
 
 var _annotation_layer = require("./display/annotation_layer.js");
 
@@ -265,8 +269,8 @@ var _svg = require("./display/svg.js");
 
 var _xfa_layer = require("./display/xfa_layer.js");
 
-const pdfjsVersion = '2.12.313';
-const pdfjsBuild = 'a2ae56f39';
+const pdfjsVersion = '2.16.105';
+const pdfjsBuild = '172ccdbe5';
 {
   if (_is_node.isNodeJS) {
     const {

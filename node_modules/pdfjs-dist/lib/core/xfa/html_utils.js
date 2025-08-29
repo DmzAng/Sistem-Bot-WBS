@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -293,7 +293,7 @@ function layoutNode(node, availableSpace) {
       }
     }
 
-    const maxWidth = (!node.w ? availableSpace.width : node.w) - marginH;
+    const maxWidth = (node.w || availableSpace.width) - marginH;
     const fontFinder = node[_xfa_object.$globalData].fontFinder;
 
     if (node.value.exData && node.value.exData[_xfa_object.$content] && node.value.exData.contentType === "text/html") {
@@ -607,7 +607,7 @@ function isPrintOnly(node) {
 function getCurrentPara(node) {
   const stack = node[_xfa_object.$getTemplateRoot]()[_xfa_object.$extra].paraStack;
 
-  return stack.length ? stack[stack.length - 1] : null;
+  return stack.length ? stack.at(-1) : null;
 }
 
 function setPara(node, nodeStyle, value) {

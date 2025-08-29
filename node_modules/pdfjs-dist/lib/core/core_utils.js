@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -31,8 +31,10 @@ exports.escapePDFName = escapePDFName;
 exports.getArrayLookupTableFactory = getArrayLookupTableFactory;
 exports.getInheritableProperty = getInheritableProperty;
 exports.getLookupTableFactory = getLookupTableFactory;
+exports.getNewAnnotationsMap = getNewAnnotationsMap;
 exports.isWhiteSpace = isWhiteSpace;
 exports.log2 = log2;
+exports.numberToString = numberToString;
 exports.parseXFAPath = parseXFAPath;
 exports.readInt8 = readInt8;
 exports.readUint16 = readUint16;
@@ -44,6 +46,8 @@ exports.validateCSSFont = validateCSSFont;
 var _util = require("../shared/util.js");
 
 var _primitives = require("./primitives.js");
+
+var _base_stream = require("./base_stream.js");
 
 function getLookupTableFactory(initializer) {
   let lookup;
@@ -299,7 +303,7 @@ function _collectJS(entry, xref, list, parents) {
 
   let parent = null;
 
-  if ((0, _primitives.isRef)(entry)) {
+  if (entry instanceof _primitives.Ref) {
     if (parents.has(entry)) {
       return;
     }
@@ -314,17 +318,17 @@ function _collectJS(entry, xref, list, parents) {
       _collectJS(element, xref, list, parents);
     }
   } else if (entry instanceof _primitives.Dict) {
-    if ((0, _primitives.isName)(entry.get("S"), "JavaScript") && entry.has("JS")) {
+    if ((0, _primitives.isName)(entry.get("S"), "JavaScript")) {
       const js = entry.get("JS");
       let code;
 
-      if ((0, _primitives.isStream)(js)) {
+      if (js instanceof _base_stream.BaseStream) {
         code = js.getString();
-      } else {
+      } else if (typeof js === "string") {
         code = js;
       }
 
-      code = (0, _util.stringToPDFString)(code);
+      code = code && (0, _util.stringToPDFString)(code).replace(/\u0000/g, "");
 
       if (code) {
         list.push(code);
@@ -498,4 +502,47 @@ function recoverJsURL(str) {
   }
 
   return null;
+}
+
+function numberToString(value) {
+  if (Number.isInteger(value)) {
+    return value.toString();
+  }
+
+  const roundedValue = Math.round(value * 100);
+
+  if (roundedValue % 100 === 0) {
+    return (roundedValue / 100).toString();
+  }
+
+  if (roundedValue % 10 === 0) {
+    return value.toFixed(1);
+  }
+
+  return value.toFixed(2);
+}
+
+function getNewAnnotationsMap(annotationStorage) {
+  if (!annotationStorage) {
+    return null;
+  }
+
+  const newAnnotationsByPage = new Map();
+
+  for (const [key, value] of annotationStorage) {
+    if (!key.startsWith(_util.AnnotationEditorPrefix)) {
+      continue;
+    }
+
+    let annotations = newAnnotationsByPage.get(value.pageIndex);
+
+    if (!annotations) {
+      annotations = [];
+      newAnnotationsByPage.set(value.pageIndex, annotations);
+    }
+
+    annotations.push(value);
+  }
+
+  return newAnnotationsByPage.size > 0 ? newAnnotationsByPage : null;
 }

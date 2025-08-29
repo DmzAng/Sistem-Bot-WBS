@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 
 (function webpackUniversalModuleDefinition(root, factory) {
@@ -29,7 +29,7 @@
 		exports["pdfjs-dist/image_decoders/pdf.image_decoders"] = factory();
 	else
 		root["pdfjs-dist/image_decoders/pdf.image_decoders"] = root.pdfjsImageDecoders = factory();
-})(this, function() {
+})(globalThis, () => {
 return /******/ (() => { // webpackBootstrap
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ([
@@ -42,12 +42,11 @@ return /******/ (() => { // webpackBootstrap
 Object.defineProperty(exports, "__esModule", ({
   value: true
 }));
-exports.VerbosityLevel = exports.Util = exports.UnknownErrorException = exports.UnexpectedResponseException = exports.UNSUPPORTED_FEATURES = exports.TextRenderingMode = exports.StreamType = exports.RenderingIntentFlag = exports.PermissionFlag = exports.PasswordResponses = exports.PasswordException = exports.PageActionEventType = exports.OPS = exports.MissingPDFException = exports.IsLittleEndianCached = exports.IsEvalSupportedCached = exports.InvalidPDFException = exports.ImageKind = exports.IDENTITY_MATRIX = exports.FormatError = exports.FontType = exports.FONT_IDENTITY_MATRIX = exports.DocumentActionEventType = exports.CMapCompressionType = exports.BaseException = exports.AnnotationType = exports.AnnotationStateModelType = exports.AnnotationReviewState = exports.AnnotationReplyType = exports.AnnotationMode = exports.AnnotationMarkedState = exports.AnnotationFlag = exports.AnnotationFieldFlag = exports.AnnotationBorderStyleType = exports.AnnotationActionEventType = exports.AbortException = void 0;
+exports.VerbosityLevel = exports.Util = exports.UnknownErrorException = exports.UnexpectedResponseException = exports.UNSUPPORTED_FEATURES = exports.TextRenderingMode = exports.StreamType = exports.RenderingIntentFlag = exports.PermissionFlag = exports.PasswordResponses = exports.PasswordException = exports.PageActionEventType = exports.OPS = exports.MissingPDFException = exports.LINE_FACTOR = exports.LINE_DESCENT_FACTOR = exports.InvalidPDFException = exports.ImageKind = exports.IDENTITY_MATRIX = exports.FormatError = exports.FontType = exports.FeatureTest = exports.FONT_IDENTITY_MATRIX = exports.DocumentActionEventType = exports.CMapCompressionType = exports.BaseException = exports.AnnotationType = exports.AnnotationStateModelType = exports.AnnotationReviewState = exports.AnnotationReplyType = exports.AnnotationMode = exports.AnnotationMarkedState = exports.AnnotationFlag = exports.AnnotationFieldFlag = exports.AnnotationEditorType = exports.AnnotationEditorPrefix = exports.AnnotationEditorParamsType = exports.AnnotationBorderStyleType = exports.AnnotationActionEventType = exports.AbortException = void 0;
 exports.arrayByteLength = arrayByteLength;
 exports.arraysToBytes = arraysToBytes;
 exports.assert = assert;
 exports.bytesToString = bytesToString;
-exports.createObjectURL = createObjectURL;
 exports.createPromiseCapability = createPromiseCapability;
 exports.createValidAbsoluteUrl = createValidAbsoluteUrl;
 exports.escapeString = escapeString;
@@ -57,13 +56,8 @@ exports.info = info;
 exports.isArrayBuffer = isArrayBuffer;
 exports.isArrayEqual = isArrayEqual;
 exports.isAscii = isAscii;
-exports.isBool = isBool;
-exports.isNum = isNum;
-exports.isSameOrigin = isSameOrigin;
-exports.isString = isString;
 exports.objectFromMap = objectFromMap;
 exports.objectSize = objectSize;
-exports.removeNullCharacters = removeNullCharacters;
 exports.setVerbosityLevel = setVerbosityLevel;
 exports.shadow = shadow;
 exports.string32 = string32;
@@ -81,6 +75,10 @@ const IDENTITY_MATRIX = [1, 0, 0, 1, 0, 0];
 exports.IDENTITY_MATRIX = IDENTITY_MATRIX;
 const FONT_IDENTITY_MATRIX = [0.001, 0, 0, 0.001, 0, 0];
 exports.FONT_IDENTITY_MATRIX = FONT_IDENTITY_MATRIX;
+const LINE_FACTOR = 1.35;
+exports.LINE_FACTOR = LINE_FACTOR;
+const LINE_DESCENT_FACTOR = 0.35;
+exports.LINE_DESCENT_FACTOR = LINE_DESCENT_FACTOR;
 const RenderingIntentFlag = {
   ANY: 0x01,
   DISPLAY: 0x02,
@@ -98,6 +96,24 @@ const AnnotationMode = {
   ENABLE_STORAGE: 3
 };
 exports.AnnotationMode = AnnotationMode;
+const AnnotationEditorPrefix = "pdfjs_internal_editor_";
+exports.AnnotationEditorPrefix = AnnotationEditorPrefix;
+const AnnotationEditorType = {
+  DISABLE: -1,
+  NONE: 0,
+  FREETEXT: 3,
+  INK: 15
+};
+exports.AnnotationEditorType = AnnotationEditorType;
+const AnnotationEditorParamsType = {
+  FREETEXT_SIZE: 1,
+  FREETEXT_COLOR: 2,
+  FREETEXT_OPACITY: 3,
+  INK_COLOR: 11,
+  INK_THICKNESS: 12,
+  INK_OPACITY: 13
+};
+exports.AnnotationEditorParamsType = AnnotationEditorParamsType;
 const PermissionFlag = {
   PRINT: 0x04,
   MODIFY_CONTENTS: 0x08,
@@ -451,23 +467,6 @@ function assert(cond, msg) {
   }
 }
 
-function isSameOrigin(baseUrl, otherUrl) {
-  let base;
-
-  try {
-    base = new URL(baseUrl);
-
-    if (!base.origin || base.origin === "null") {
-      return false;
-    }
-  } catch (e) {
-    return false;
-  }
-
-  const other = new URL(otherUrl, base);
-  return base.origin === other.origin;
-}
-
 function _isValidProtocol(url) {
   if (!url) {
     return false;
@@ -610,24 +609,12 @@ class AbortException extends BaseException {
 }
 
 exports.AbortException = AbortException;
-const NullCharactersRegExp = /\x00+/g;
-const InvisibleCharactersRegExp = /[\x01-\x1F]/g;
-
-function removeNullCharacters(str, replaceInvisible = false) {
-  if (typeof str !== "string") {
-    warn("The argument for removeNullCharacters must be a string.");
-    return str;
-  }
-
-  if (replaceInvisible) {
-    str = str.replace(InvisibleCharactersRegExp, " ");
-  }
-
-  return str.replace(NullCharactersRegExp, "");
-}
 
 function bytesToString(bytes) {
-  assert(bytes !== null && typeof bytes === "object" && bytes.length !== undefined, "Invalid argument for bytesToString");
+  if (typeof bytes !== "object" || bytes === null || bytes.length === undefined) {
+    unreachable("Invalid argument for bytesToString");
+  }
+
   const length = bytes.length;
   const MAX_ARGUMENT_COUNT = 8192;
 
@@ -647,7 +634,10 @@ function bytesToString(bytes) {
 }
 
 function stringToBytes(str) {
-  assert(typeof str === "string", "Invalid argument for stringToBytes");
+  if (typeof str !== "string") {
+    unreachable("Invalid argument for stringToBytes");
+  }
+
   const length = str.length;
   const bytes = new Uint8Array(length);
 
@@ -663,8 +653,11 @@ function arrayByteLength(arr) {
     return arr.length;
   }
 
-  assert(arr.byteLength !== undefined, "arrayByteLength - invalid argument.");
-  return arr.byteLength;
+  if (arr.byteLength !== undefined) {
+    return arr.byteLength;
+  }
+
+  unreachable("Invalid argument for arrayByteLength");
 }
 
 function arraysToBytes(arr) {
@@ -727,14 +720,6 @@ function isLittleEndian() {
   return view32[0] === 1;
 }
 
-const IsLittleEndianCached = {
-  get value() {
-    return shadow(this, "value", isLittleEndian());
-  }
-
-};
-exports.IsLittleEndianCached = IsLittleEndianCached;
-
 function isEvalSupported() {
   try {
     new Function("");
@@ -744,18 +729,81 @@ function isEvalSupported() {
   }
 }
 
-const IsEvalSupportedCached = {
-  get value() {
-    return shadow(this, "value", isEvalSupported());
+class FeatureTest {
+  static get isLittleEndian() {
+    return shadow(this, "isLittleEndian", isLittleEndian());
   }
 
-};
-exports.IsEvalSupportedCached = IsEvalSupportedCached;
+  static get isEvalSupported() {
+    return shadow(this, "isEvalSupported", isEvalSupported());
+  }
+
+  static get isOffscreenCanvasSupported() {
+    return shadow(this, "isOffscreenCanvasSupported", typeof OffscreenCanvas !== "undefined");
+  }
+
+}
+
+exports.FeatureTest = FeatureTest;
 const hexNumbers = [...Array(256).keys()].map(n => n.toString(16).padStart(2, "0"));
 
 class Util {
   static makeHexColor(r, g, b) {
     return `#${hexNumbers[r]}${hexNumbers[g]}${hexNumbers[b]}`;
+  }
+
+  static scaleMinMax(transform, minMax) {
+    let temp;
+
+    if (transform[0]) {
+      if (transform[0] < 0) {
+        temp = minMax[0];
+        minMax[0] = minMax[1];
+        minMax[1] = temp;
+      }
+
+      minMax[0] *= transform[0];
+      minMax[1] *= transform[0];
+
+      if (transform[3] < 0) {
+        temp = minMax[2];
+        minMax[2] = minMax[3];
+        minMax[3] = temp;
+      }
+
+      minMax[2] *= transform[3];
+      minMax[3] *= transform[3];
+    } else {
+      temp = minMax[0];
+      minMax[0] = minMax[2];
+      minMax[2] = temp;
+      temp = minMax[1];
+      minMax[1] = minMax[3];
+      minMax[3] = temp;
+
+      if (transform[1] < 0) {
+        temp = minMax[2];
+        minMax[2] = minMax[3];
+        minMax[3] = temp;
+      }
+
+      minMax[2] *= transform[1];
+      minMax[3] *= transform[1];
+
+      if (transform[2] < 0) {
+        temp = minMax[0];
+        minMax[0] = minMax[1];
+        minMax[1] = temp;
+      }
+
+      minMax[0] *= transform[2];
+      minMax[1] *= transform[2];
+    }
+
+    minMax[0] += transform[4];
+    minMax[1] += transform[4];
+    minMax[2] += transform[5];
+    minMax[3] += transform[5];
   }
 
   static transform(m1, m2) {
@@ -822,31 +870,21 @@ class Util {
   }
 
   static intersect(rect1, rect2) {
-    function compare(a, b) {
-      return a - b;
-    }
+    const xLow = Math.max(Math.min(rect1[0], rect1[2]), Math.min(rect2[0], rect2[2]));
+    const xHigh = Math.min(Math.max(rect1[0], rect1[2]), Math.max(rect2[0], rect2[2]));
 
-    const orderedX = [rect1[0], rect1[2], rect2[0], rect2[2]].sort(compare);
-    const orderedY = [rect1[1], rect1[3], rect2[1], rect2[3]].sort(compare);
-    const result = [];
-    rect1 = Util.normalizeRect(rect1);
-    rect2 = Util.normalizeRect(rect2);
-
-    if (orderedX[0] === rect1[0] && orderedX[1] === rect2[0] || orderedX[0] === rect2[0] && orderedX[1] === rect1[0]) {
-      result[0] = orderedX[1];
-      result[2] = orderedX[2];
-    } else {
+    if (xLow > xHigh) {
       return null;
     }
 
-    if (orderedY[0] === rect1[1] && orderedY[1] === rect2[1] || orderedY[0] === rect2[1] && orderedY[1] === rect1[1]) {
-      result[1] = orderedY[1];
-      result[3] = orderedY[2];
-    } else {
+    const yLow = Math.max(Math.min(rect1[1], rect1[3]), Math.min(rect2[1], rect2[3]));
+    const yHigh = Math.min(Math.max(rect1[1], rect1[3]), Math.max(rect2[1], rect2[3]));
+
+    if (yLow > yHigh) {
       return null;
     }
 
-    return result;
+    return [xLow, yLow, xHigh, yHigh];
   }
 
   static bezierBoundingBox(x0, y0, x1, y1, x2, y2, x3, y3) {
@@ -924,22 +962,35 @@ exports.Util = Util;
 const PDFStringTranslateTable = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x2d8, 0x2c7, 0x2c6, 0x2d9, 0x2dd, 0x2db, 0x2da, 0x2dc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x2022, 0x2020, 0x2021, 0x2026, 0x2014, 0x2013, 0x192, 0x2044, 0x2039, 0x203a, 0x2212, 0x2030, 0x201e, 0x201c, 0x201d, 0x2018, 0x2019, 0x201a, 0x2122, 0xfb01, 0xfb02, 0x141, 0x152, 0x160, 0x178, 0x17d, 0x131, 0x142, 0x153, 0x161, 0x17e, 0, 0x20ac];
 
 function stringToPDFString(str) {
-  const length = str.length,
-        strBuf = [];
+  if (str[0] >= "\xEF") {
+    let encoding;
 
-  if (str[0] === "\xFE" && str[1] === "\xFF") {
-    for (let i = 2; i < length; i += 2) {
-      strBuf.push(String.fromCharCode(str.charCodeAt(i) << 8 | str.charCodeAt(i + 1)));
+    if (str[0] === "\xFE" && str[1] === "\xFF") {
+      encoding = "utf-16be";
+    } else if (str[0] === "\xFF" && str[1] === "\xFE") {
+      encoding = "utf-16le";
+    } else if (str[0] === "\xEF" && str[1] === "\xBB" && str[2] === "\xBF") {
+      encoding = "utf-8";
     }
-  } else if (str[0] === "\xFF" && str[1] === "\xFE") {
-    for (let i = 2; i < length; i += 2) {
-      strBuf.push(String.fromCharCode(str.charCodeAt(i + 1) << 8 | str.charCodeAt(i)));
+
+    if (encoding) {
+      try {
+        const decoder = new TextDecoder(encoding, {
+          fatal: true
+        });
+        const buffer = stringToBytes(str);
+        return decoder.decode(buffer);
+      } catch (ex) {
+        warn(`stringToPDFString: "${ex}".`);
+      }
     }
-  } else {
-    for (let i = 0; i < length; ++i) {
-      const code = PDFStringTranslateTable[str.charCodeAt(i)];
-      strBuf.push(code ? String.fromCharCode(code) : str.charAt(i));
-    }
+  }
+
+  const strBuf = [];
+
+  for (let i = 0, ii = str.length; i < ii; i++) {
+    const code = PDFStringTranslateTable[str.charCodeAt(i)];
+    strBuf.push(code ? String.fromCharCode(code) : str.charAt(i));
   }
 
   return strBuf.join("");
@@ -978,18 +1029,6 @@ function stringToUTF8String(str) {
 
 function utf8StringToString(str) {
   return unescape(encodeURIComponent(str));
-}
-
-function isBool(v) {
-  return typeof v === "boolean";
-}
-
-function isNum(v) {
-  return typeof v === "number";
-}
-
-function isString(v) {
-  return typeof v === "string";
 }
 
 function isArrayBuffer(v) {
@@ -1036,30 +1075,6 @@ function createPromiseCapability() {
     };
   });
   return capability;
-}
-
-function createObjectURL(data, contentType = "", forceDataSchema = false) {
-  if (URL.createObjectURL && typeof Blob !== "undefined" && !forceDataSchema) {
-    return URL.createObjectURL(new Blob([data], {
-      type: contentType
-    }));
-  }
-
-  const digits = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-  let buffer = `data:${contentType};base64,`;
-
-  for (let i = 0, ii = data.length; i < ii; i += 3) {
-    const b1 = data[i] & 0xff;
-    const b2 = data[i + 1] & 0xff;
-    const b3 = data[i + 2] & 0xff;
-    const d1 = b1 >> 2,
-          d2 = (b1 & 3) << 4 | b2 >> 4;
-    const d3 = i + 1 < ii ? (b2 & 0xf) << 2 | b3 >> 6 : 64;
-    const d4 = i + 2 < ii ? b3 & 0x3f : 64;
-    buffer += digits[d1] + digits[d2] + digits[d3] + digits[d4];
-  }
-
-  return buffer;
 }
 
 /***/ }),
@@ -2440,7 +2455,7 @@ function processSegment(segment, visitor) {
       break;
 
     default:
-      throw new Jbig2Error(`segment type ${header.typeName}(${header.type})` + " is not implemented");
+      throw new Jbig2Error(`segment type ${header.typeName}(${header.type}) is not implemented`);
   }
 
   const callbackName = "on" + header.typeName;
@@ -2527,9 +2542,7 @@ class SimpleSegmentVisitor {
     const buffer = new Uint8ClampedArray(rowSize * info.height);
 
     if (info.defaultPixelValue) {
-      for (let i = 0, ii = buffer.length; i < ii; i++) {
-        buffer[i] = 0xff;
-      }
+      buffer.fill(0xff);
     }
 
     this.buffer = buffer;
@@ -2606,7 +2619,7 @@ class SimpleSegmentVisitor {
   }
 
   onImmediateLosslessGenericRegion() {
-    this.onImmediateGenericRegion.apply(this, arguments);
+    this.onImmediateGenericRegion(...arguments);
   }
 
   onSymbolDictionary(dictionary, currentSegment, referredSegments, data, start, end) {
@@ -2623,13 +2636,13 @@ class SimpleSegmentVisitor {
       this.symbols = symbols = {};
     }
 
-    let inputSymbols = [];
+    const inputSymbols = [];
 
-    for (let i = 0, ii = referredSegments.length; i < ii; i++) {
-      const referredSymbols = symbols[referredSegments[i]];
+    for (const referredSegment of referredSegments) {
+      const referredSymbols = symbols[referredSegment];
 
       if (referredSymbols) {
-        inputSymbols = inputSymbols.concat(referredSymbols);
+        inputSymbols.push(...referredSymbols);
       }
     }
 
@@ -2641,13 +2654,13 @@ class SimpleSegmentVisitor {
     const regionInfo = region.info;
     let huffmanTables, huffmanInput;
     const symbols = this.symbols;
-    let inputSymbols = [];
+    const inputSymbols = [];
 
-    for (let i = 0, ii = referredSegments.length; i < ii; i++) {
-      const referredSymbols = symbols[referredSegments[i]];
+    for (const referredSegment of referredSegments) {
+      const referredSymbols = symbols[referredSegment];
 
       if (referredSymbols) {
-        inputSymbols = inputSymbols.concat(referredSymbols);
+        inputSymbols.push(...referredSymbols);
       }
     }
 
@@ -2664,7 +2677,7 @@ class SimpleSegmentVisitor {
   }
 
   onImmediateLosslessTextRegion() {
-    this.onImmediateTextRegion.apply(this, arguments);
+    this.onImmediateTextRegion(...arguments);
   }
 
   onPatternDictionary(dictionary, currentSegment, data, start, end) {
@@ -2687,7 +2700,7 @@ class SimpleSegmentVisitor {
   }
 
   onImmediateLosslessHalftoneRegion() {
-    this.onImmediateHalftoneRegion.apply(this, arguments);
+    this.onImmediateHalftoneRegion(...arguments);
   }
 
   onTables(currentSegment, data, start, end) {
@@ -3300,8 +3313,10 @@ exports.escapePDFName = escapePDFName;
 exports.getArrayLookupTableFactory = getArrayLookupTableFactory;
 exports.getInheritableProperty = getInheritableProperty;
 exports.getLookupTableFactory = getLookupTableFactory;
+exports.getNewAnnotationsMap = getNewAnnotationsMap;
 exports.isWhiteSpace = isWhiteSpace;
 exports.log2 = log2;
+exports.numberToString = numberToString;
 exports.parseXFAPath = parseXFAPath;
 exports.readInt8 = readInt8;
 exports.readUint16 = readUint16;
@@ -3313,6 +3328,8 @@ exports.validateCSSFont = validateCSSFont;
 var _util = __w_pdfjs_require__(1);
 
 var _primitives = __w_pdfjs_require__(6);
+
+var _base_stream = __w_pdfjs_require__(7);
 
 function getLookupTableFactory(initializer) {
   let lookup;
@@ -3568,7 +3585,7 @@ function _collectJS(entry, xref, list, parents) {
 
   let parent = null;
 
-  if ((0, _primitives.isRef)(entry)) {
+  if (entry instanceof _primitives.Ref) {
     if (parents.has(entry)) {
       return;
     }
@@ -3583,17 +3600,17 @@ function _collectJS(entry, xref, list, parents) {
       _collectJS(element, xref, list, parents);
     }
   } else if (entry instanceof _primitives.Dict) {
-    if ((0, _primitives.isName)(entry.get("S"), "JavaScript") && entry.has("JS")) {
+    if ((0, _primitives.isName)(entry.get("S"), "JavaScript")) {
       const js = entry.get("JS");
       let code;
 
-      if ((0, _primitives.isStream)(js)) {
+      if (js instanceof _base_stream.BaseStream) {
         code = js.getString();
-      } else {
+      } else if (typeof js === "string") {
         code = js;
       }
 
-      code = (0, _util.stringToPDFString)(code);
+      code = code && (0, _util.stringToPDFString)(code).replace(/\u0000/g, "");
 
       if (code) {
         list.push(code);
@@ -3769,6 +3786,49 @@ function recoverJsURL(str) {
   return null;
 }
 
+function numberToString(value) {
+  if (Number.isInteger(value)) {
+    return value.toString();
+  }
+
+  const roundedValue = Math.round(value * 100);
+
+  if (roundedValue % 100 === 0) {
+    return (roundedValue / 100).toString();
+  }
+
+  if (roundedValue % 10 === 0) {
+    return value.toFixed(1);
+  }
+
+  return value.toFixed(2);
+}
+
+function getNewAnnotationsMap(annotationStorage) {
+  if (!annotationStorage) {
+    return null;
+  }
+
+  const newAnnotationsByPage = new Map();
+
+  for (const [key, value] of annotationStorage) {
+    if (!key.startsWith(_util.AnnotationEditorPrefix)) {
+      continue;
+    }
+
+    let annotations = newAnnotationsByPage.get(value.pageIndex);
+
+    if (!annotations) {
+      annotations = [];
+      newAnnotationsByPage.set(value.pageIndex, annotations);
+    }
+
+    annotations.push(value);
+  }
+
+  return newAnnotationsByPage.size > 0 ? newAnnotationsByPage : null;
+}
+
 /***/ }),
 /* 6 */
 /***/ ((__unused_webpack_module, exports, __w_pdfjs_require__) => {
@@ -3783,13 +3843,9 @@ exports.clearPrimitiveCaches = clearPrimitiveCaches;
 exports.isCmd = isCmd;
 exports.isDict = isDict;
 exports.isName = isName;
-exports.isRef = isRef;
 exports.isRefsEqual = isRefsEqual;
-exports.isStream = isStream;
 
 var _util = __w_pdfjs_require__(1);
-
-var _base_stream = __w_pdfjs_require__(7);
 
 const CIRCULAR_REF = Symbol("CIRCULAR_REF");
 exports.CIRCULAR_REF = CIRCULAR_REF;
@@ -3805,8 +3861,7 @@ const Name = function NameClosure() {
     }
 
     static get(name) {
-      const nameValue = nameCache[name];
-      return nameValue ? nameValue : nameCache[name] = new Name(name);
+      return nameCache[name] || (nameCache[name] = new Name(name));
     }
 
     static _clearCache() {
@@ -3829,8 +3884,7 @@ const Cmd = function CmdClosure() {
     }
 
     static get(cmd) {
-      const cmdValue = cmdCache[cmd];
-      return cmdValue ? cmdValue : cmdCache[cmd] = new Cmd(cmd);
+      return cmdCache[cmd] || (cmdCache[cmd] = new Cmd(cmd));
     }
 
     static _clearCache() {
@@ -4040,8 +4094,7 @@ const Ref = function RefClosure() {
 
     static get(num, gen) {
       const key = gen === 0 ? `${num}R` : `${num}R${gen}`;
-      const refValue = refCache[key];
-      return refValue ? refValue : refCache[key] = new Ref(num, gen);
+      return refCache[key] || (refCache[key] = new Ref(num, gen));
     }
 
     static _clearCache() {
@@ -4072,10 +4125,8 @@ class RefSet {
     this._set.delete(ref.toString());
   }
 
-  forEach(callback) {
-    for (const ref of this._set.values()) {
-      callback(ref);
-    }
+  [Symbol.iterator]() {
+    return this._set.values();
   }
 
   clear() {
@@ -4111,10 +4162,8 @@ class RefSetCache {
     this._map.set(ref.toString(), this.get(aliasRef));
   }
 
-  forEach(callback) {
-    for (const value of this._map.values()) {
-      callback(value);
-    }
+  [Symbol.iterator]() {
+    return this._map.values();
   }
 
   clear() {
@@ -4137,16 +4186,8 @@ function isDict(v, type) {
   return v instanceof Dict && (type === undefined || isName(v.get("Type"), type));
 }
 
-function isRef(v) {
-  return v instanceof Ref;
-}
-
 function isRefsEqual(v1, v2) {
   return v1.num === v2.num && v1.gen === v2.gen;
-}
-
-function isStream(v) {
-  return v instanceof _base_stream.BaseStream;
 }
 
 function clearPrimitiveCaches() {
@@ -4193,7 +4234,7 @@ class BaseStream {
     (0, _util.unreachable)("Abstract method `getByte` called");
   }
 
-  getBytes(length, forceClamped = false) {
+  getBytes(length) {
     (0, _util.unreachable)("Abstract method `getBytes` called");
   }
 
@@ -4207,8 +4248,8 @@ class BaseStream {
     return peekedByte;
   }
 
-  peekBytes(length, forceClamped = false) {
-    const bytes = this.getBytes(length, forceClamped);
+  peekBytes(length) {
+    const bytes = this.getBytes(length);
     this.pos -= bytes.length;
     return bytes;
   }
@@ -4237,7 +4278,7 @@ class BaseStream {
   }
 
   getString(length) {
-    return (0, _util.bytesToString)(this.getBytes(length, false));
+    return (0, _util.bytesToString)(this.getBytes(length));
   }
 
   skip(n) {
@@ -6950,10 +6991,6 @@ class JpxImage {
               unsupported.push("selectiveArithmeticCodingBypass");
             }
 
-            if (cod.resetContextProbabilities) {
-              unsupported.push("resetContextProbabilities");
-            }
-
             if (cod.terminationOnEachCodingPass) {
               unsupported.push("terminationOnEachCodingPass");
             }
@@ -7898,7 +7935,7 @@ function parseTilePackets(context, data, offset, dataLength) {
   return position;
 }
 
-function copyCoefficients(coefficients, levelWidth, levelHeight, subband, delta, mb, reversible, segmentationSymbolUsed) {
+function copyCoefficients(coefficients, levelWidth, levelHeight, subband, delta, mb, reversible, segmentationSymbolUsed, resetContextProbabilities) {
   const x0 = subband.tbx0;
   const y0 = subband.tby0;
   const width = subband.tbx1 - subband.tbx0;
@@ -7965,6 +8002,10 @@ function copyCoefficients(coefficients, levelWidth, levelHeight, subband, delta,
           break;
       }
 
+      if (resetContextProbabilities) {
+        bitModel.reset();
+      }
+
       currentCodingpassType = (currentCodingpassType + 1) % 3;
     }
 
@@ -8019,6 +8060,7 @@ function transformTile(context, tile, c) {
   const scalarExpounded = quantizationParameters.scalarExpounded;
   const guardBits = quantizationParameters.guardBits;
   const segmentationSymbolUsed = codingStyleParameters.segmentationSymbolUsed;
+  const resetContextProbabilities = codingStyleParameters.resetContextProbabilities;
   const precision = context.components[c].precision;
   const reversible = codingStyleParameters.reversibleTransformation;
   const transform = reversible ? new ReversibleTransform() : new IrreversibleTransform();
@@ -8047,7 +8089,7 @@ function transformTile(context, tile, c) {
       const gainLog2 = SubbandsGainLog2[subband.type];
       const delta = reversible ? 1 : 2 ** (precision + gainLog2 - epsilon) * (1 + mu / 2048);
       const mb = guardBits + epsilon - 1;
-      copyCoefficients(coefficients, width, height, subband, delta, mb, reversible, segmentationSymbolUsed);
+      copyCoefficients(coefficients, width, height, subband, delta, mb, reversible, segmentationSymbolUsed, resetContextProbabilities);
     }
 
     subbandCoefficients.push({
@@ -8986,8 +9028,8 @@ var _jpg = __w_pdfjs_require__(10);
 
 var _jpx = __w_pdfjs_require__(11);
 
-const pdfjsVersion = '2.12.313';
-const pdfjsBuild = 'a2ae56f39';
+const pdfjsVersion = '2.16.105';
+const pdfjsBuild = '172ccdbe5';
 })();
 
 /******/ 	return __webpack_exports__;

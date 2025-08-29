@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,21 +17,21 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.animationStarted = exports.VERTICAL_PADDING = exports.UNKNOWN_SCALE = exports.TextLayerMode = exports.SpreadMode = exports.SidebarView = exports.ScrollMode = exports.SCROLLBAR_PADDING = exports.RenderingStates = exports.RendererType = exports.ProgressBar = exports.PresentationModeState = exports.MIN_SCALE = exports.MAX_SCALE = exports.MAX_AUTO_SCALE = exports.DEFAULT_SCALE_VALUE = exports.DEFAULT_SCALE_DELTA = exports.DEFAULT_SCALE = exports.AutoPrintRegExp = void 0;
+exports.animationStarted = exports.VERTICAL_PADDING = exports.UNKNOWN_SCALE = exports.TextLayerMode = exports.SpreadMode = exports.SidebarView = exports.ScrollMode = exports.SCROLLBAR_PADDING = exports.RenderingStates = exports.RendererType = exports.ProgressBar = exports.PresentationModeState = exports.OutputScale = exports.MIN_SCALE = exports.MAX_SCALE = exports.MAX_AUTO_SCALE = exports.DEFAULT_SCALE_VALUE = exports.DEFAULT_SCALE_DELTA = exports.DEFAULT_SCALE = exports.AutoPrintRegExp = void 0;
 exports.apiPageLayoutToViewerModes = apiPageLayoutToViewerModes;
 exports.apiPageModeToSidebarView = apiPageModeToSidebarView;
 exports.approximateFraction = approximateFraction;
 exports.backtrackBeforeAllVisibleElements = backtrackBeforeAllVisibleElements;
 exports.binarySearchFirstItem = binarySearchFirstItem;
+exports.docStyle = void 0;
 exports.getActiveOrFocusedElement = getActiveOrFocusedElement;
-exports.getOutputScale = getOutputScale;
 exports.getPageSizeInches = getPageSizeInches;
 exports.getVisibleElements = getVisibleElements;
 exports.isPortraitOrientation = isPortraitOrientation;
@@ -42,6 +42,7 @@ exports.noContextMenuHandler = noContextMenuHandler;
 exports.normalizeWheelEventDelta = normalizeWheelEventDelta;
 exports.normalizeWheelEventDirection = normalizeWheelEventDirection;
 exports.parseQueryString = parseQueryString;
+exports.removeNullCharacters = removeNullCharacters;
 exports.roundToDivide = roundToDivide;
 exports.scrollIntoView = scrollIntoView;
 exports.watchScroll = watchScroll;
@@ -63,7 +64,6 @@ const SCROLLBAR_PADDING = 40;
 exports.SCROLLBAR_PADDING = SCROLLBAR_PADDING;
 const VERTICAL_PADDING = 5;
 exports.VERTICAL_PADDING = VERTICAL_PADDING;
-const LOADINGBAR_END_OFFSET_VAR = "--loadingBar-end-offset";
 const RenderingStates = {
   INITIAL: 0,
   RUNNING: 1,
@@ -116,16 +116,20 @@ exports.SpreadMode = SpreadMode;
 const AutoPrintRegExp = /\bprint\s*\(/;
 exports.AutoPrintRegExp = AutoPrintRegExp;
 
-function getOutputScale(ctx) {
-  const devicePixelRatio = window.devicePixelRatio || 1;
-  const backingStoreRatio = ctx.webkitBackingStorePixelRatio || ctx.mozBackingStorePixelRatio || ctx.backingStorePixelRatio || 1;
-  const pixelRatio = devicePixelRatio / backingStoreRatio;
-  return {
-    sx: pixelRatio,
-    sy: pixelRatio,
-    scaled: pixelRatio !== 1
-  };
+class OutputScale {
+  constructor() {
+    const pixelRatio = window.devicePixelRatio || 1;
+    this.sx = pixelRatio;
+    this.sy = pixelRatio;
+  }
+
+  get scaled() {
+    return this.sx !== 1 || this.sy !== 1;
+  }
+
 }
+
+exports.OutputScale = OutputScale;
 
 function scrollIntoView(element, spot, scrollMatches = false) {
   let parent = element.offsetParent;
@@ -212,8 +216,24 @@ function parseQueryString(query) {
   return params;
 }
 
-function binarySearchFirstItem(items, condition) {
-  let minIndex = 0;
+const NullCharactersRegExp = /\x00/g;
+const InvisibleCharactersRegExp = /[\x01-\x1F]/g;
+
+function removeNullCharacters(str, replaceInvisible = false) {
+  if (typeof str !== "string") {
+    console.error(`The argument must be a string.`);
+    return str;
+  }
+
+  if (replaceInvisible) {
+    str = str.replace(InvisibleCharactersRegExp, " ");
+  }
+
+  return str.replace(NullCharactersRegExp, "");
+}
+
+function binarySearchFirstItem(items, condition, start = 0) {
+  let minIndex = start;
   let maxIndex = items.length - 1;
 
   if (maxIndex < 0 || !condition(items[maxIndex])) {
@@ -407,7 +427,7 @@ function getVisibleElements({
   }
 
   const first = visible[0],
-        last = visible[visible.length - 1];
+        last = visible.at(-1);
 
   if (sortByVisibility) {
     visible.sort(function (a, b) {
@@ -485,48 +505,41 @@ const animationStarted = new Promise(function (resolve) {
   window.requestAnimationFrame(resolve);
 });
 exports.animationStarted = animationStarted;
+const docStyle = typeof document === "undefined" ? null : document.documentElement.style;
+exports.docStyle = docStyle;
 
 function clamp(v, min, max) {
   return Math.min(Math.max(v, min), max);
 }
 
 class ProgressBar {
-  constructor(id, {
-    height,
-    width,
-    units
-  } = {}) {
-    this.visible = true;
-    this.div = document.querySelector(id + " .progress");
-    this.bar = this.div.parentNode;
-    this.height = height || 100;
-    this.width = width || 100;
-    this.units = units || "%";
-    this.div.style.height = this.height + this.units;
-    this.percent = 0;
-  }
+  #classList = null;
+  #percent = 0;
+  #visible = true;
 
-  _updateBar() {
-    if (this._indeterminate) {
-      this.div.classList.add("indeterminate");
-      this.div.style.width = this.width + this.units;
-      return;
+  constructor(id) {
+    if (arguments.length > 1) {
+      throw new Error("ProgressBar no longer accepts any additional options, " + "please use CSS rules to modify its appearance instead.");
     }
 
-    this.div.classList.remove("indeterminate");
-    const progressSize = this.width * this._percent / 100;
-    this.div.style.width = progressSize + this.units;
+    const bar = document.getElementById(id);
+    this.#classList = bar.classList;
   }
 
   get percent() {
-    return this._percent;
+    return this.#percent;
   }
 
   set percent(val) {
-    this._indeterminate = isNaN(val);
-    this._percent = clamp(val, 0, 100);
+    this.#percent = clamp(val, 0, 100);
 
-    this._updateBar();
+    if (isNaN(val)) {
+      this.#classList.add("indeterminate");
+      return;
+    }
+
+    this.#classList.remove("indeterminate");
+    docStyle.setProperty("--progressBar-percent", `${this.#percent}%`);
   }
 
   setWidth(viewer) {
@@ -538,27 +551,26 @@ class ProgressBar {
     const scrollbarWidth = container.offsetWidth - viewer.offsetWidth;
 
     if (scrollbarWidth > 0) {
-      const doc = document.documentElement;
-      doc.style.setProperty(LOADINGBAR_END_OFFSET_VAR, `${scrollbarWidth}px`);
+      docStyle.setProperty("--progressBar-end-offset", `${scrollbarWidth}px`);
     }
   }
 
   hide() {
-    if (!this.visible) {
+    if (!this.#visible) {
       return;
     }
 
-    this.visible = false;
-    this.bar.classList.add("hidden");
+    this.#visible = false;
+    this.#classList.add("hidden");
   }
 
   show() {
-    if (this.visible) {
+    if (this.#visible) {
       return;
     }
 
-    this.visible = true;
-    this.bar.classList.remove("hidden");
+    this.#visible = true;
+    this.#classList.remove("hidden");
   }
 
 }

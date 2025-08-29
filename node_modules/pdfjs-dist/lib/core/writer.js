@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -26,6 +26,7 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.incrementalUpdate = incrementalUpdate;
 exports.writeDict = writeDict;
+exports.writeObject = writeObject;
 
 var _util = require("../shared/util.js");
 
@@ -35,7 +36,21 @@ var _core_utils = require("./core_utils.js");
 
 var _xml_parser = require("./xml_parser.js");
 
+var _base_stream = require("./base_stream.js");
+
 var _crypto = require("./crypto.js");
+
+function writeObject(ref, obj, buffer, transform) {
+  buffer.push(`${ref.num} ${ref.gen} obj\n`);
+
+  if (obj instanceof _primitives.Dict) {
+    writeDict(obj, buffer, transform);
+  } else if (obj instanceof _base_stream.BaseStream) {
+    writeStream(obj, buffer, transform);
+  }
+
+  buffer.push("\nendobj\n");
+}
 
 function writeDict(dict, buffer, transform) {
   buffer.push("<<");
@@ -77,28 +92,10 @@ function writeArray(array, buffer, transform) {
   buffer.push("]");
 }
 
-function numberToString(value) {
-  if (Number.isInteger(value)) {
-    return value.toString();
-  }
-
-  const roundedValue = Math.round(value * 100);
-
-  if (roundedValue % 100 === 0) {
-    return (roundedValue / 100).toString();
-  }
-
-  if (roundedValue % 10 === 0) {
-    return value.toFixed(1);
-  }
-
-  return value.toFixed(2);
-}
-
 function writeValue(value, buffer, transform) {
-  if ((0, _primitives.isName)(value)) {
+  if (value instanceof _primitives.Name) {
     buffer.push(`/${(0, _core_utils.escapePDFName)(value.name)}`);
-  } else if ((0, _primitives.isRef)(value)) {
+  } else if (value instanceof _primitives.Ref) {
     buffer.push(`${value.num} ${value.gen} R`);
   } else if (Array.isArray(value)) {
     writeArray(value, buffer, transform);
@@ -109,12 +106,12 @@ function writeValue(value, buffer, transform) {
 
     buffer.push(`(${(0, _util.escapeString)(value)})`);
   } else if (typeof value === "number") {
-    buffer.push(numberToString(value));
+    buffer.push((0, _core_utils.numberToString)(value));
   } else if (typeof value === "boolean") {
     buffer.push(value.toString());
-  } else if ((0, _primitives.isDict)(value)) {
+  } else if (value instanceof _primitives.Dict) {
     writeDict(value, buffer, transform);
-  } else if ((0, _primitives.isStream)(value)) {
+  } else if (value instanceof _base_stream.BaseStream) {
     writeStream(value, buffer, transform);
   } else if (value === null) {
     buffer.push("null");
@@ -184,7 +181,11 @@ function writeXFADataForAcroform(str, newRefs) {
     const node = xml.documentElement.searchNode((0, _core_utils.parseXFAPath)(path), 0);
 
     if (node) {
-      node.childNodes = [new _xml_parser.SimpleDOMNode("#text", value)];
+      if (Array.isArray(value)) {
+        node.childNodes = value.map(val => new _xml_parser.SimpleDOMNode("value", val));
+      } else {
+        node.childNodes = [new _xml_parser.SimpleDOMNode("#text", value)];
+      }
     } else {
       (0, _util.warn)(`Node not found for path: ${path}`);
     }
@@ -284,7 +285,7 @@ function incrementalUpdate({
   const newXref = new _primitives.Dict(null);
   const refForXrefTable = xrefInfo.newRef;
   let buffer, baseOffset;
-  const lastByte = originalData[originalData.length - 1];
+  const lastByte = originalData.at(-1);
 
   if (lastByte === 0x0a || lastByte === 0x0d) {
     buffer = [];

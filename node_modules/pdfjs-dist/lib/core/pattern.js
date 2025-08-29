@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -29,9 +29,9 @@ exports.getTilingPatternIR = getTilingPatternIR;
 
 var _util = require("../shared/util.js");
 
-var _colorspace = require("./colorspace.js");
+var _base_stream = require("./base_stream.js");
 
-var _primitives = require("./primitives.js");
+var _colorspace = require("./colorspace.js");
 
 var _core_utils = require("./core_utils.js");
 
@@ -51,7 +51,7 @@ class Pattern {
   }
 
   static parseShading(shading, xref, res, handler, pdfFunctionFactory, localColorSpaceCache) {
-    const dict = (0, _primitives.isStream)(shading) ? shading.dict : shading;
+    const dict = shading instanceof _base_stream.BaseStream ? shading.dict : shading;
     const type = dict.get("ShadingType");
 
     try {
@@ -192,7 +192,7 @@ class RadialAxialShading extends BaseShading {
     }
 
     if (!extendEnd) {
-      colorStops[colorStops.length - 1][0] -= BaseShading.SMALL_NUMBER;
+      colorStops.at(-1)[0] -= BaseShading.SMALL_NUMBER;
       colorStops.push([1, background]);
     }
 
@@ -367,7 +367,7 @@ class MeshShading extends BaseShading {
   constructor(stream, xref, resources, pdfFunctionFactory, localColorSpaceCache) {
     super();
 
-    if (!(0, _primitives.isStream)(stream)) {
+    if (!(stream instanceof _base_stream.BaseStream)) {
       throw new _util.FormatError("Mesh data is not a stream");
     }
 
@@ -477,12 +477,12 @@ class MeshShading extends BaseShading {
             break;
 
           case 1:
-            ps.push(ps[ps.length - 2], ps[ps.length - 1]);
+            ps.push(ps.at(-2), ps.at(-1));
             verticesLeft = 1;
             break;
 
           case 2:
-            ps.push(ps[ps.length - 3], ps[ps.length - 1]);
+            ps.push(ps.at(-3), ps.at(-1));
             verticesLeft = 1;
             break;
         }

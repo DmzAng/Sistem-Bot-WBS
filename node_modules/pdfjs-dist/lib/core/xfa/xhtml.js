@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -97,6 +97,10 @@ function mapStyle(styleStr, node, richText) {
     const fontSize = (0, _utils.getMeasurement)(style.fontSize);
     style.fontSize = (0, _html_utils.measureToString)(fontSize * SUB_SUPER_SCRIPT_FACTOR);
     style.verticalAlign = (0, _html_utils.measureToString)(Math.sign((0, _utils.getMeasurement)(style.verticalAlign)) * fontSize * VERTICAL_FACTOR);
+  }
+
+  if (richText && style.fontSize) {
+    style.fontSize = `calc(${style.fontSize} * var(--scale-factor))`;
   }
 
   (0, _html_utils.fixTextIndent)(style);
@@ -448,7 +452,7 @@ class P extends XhtmlObject {
   [_xfa_object.$text]() {
     const siblings = this[_xfa_object.$getParent]()[_xfa_object.$getChildren]();
 
-    if (siblings[siblings.length - 1] === this) {
+    if (siblings.at(-1) === this) {
       return super[_xfa_object.$text]();
     }
 

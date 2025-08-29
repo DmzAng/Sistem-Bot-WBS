@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,27 +17,25 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.build = exports.RenderTask = exports.PDFWorker = exports.PDFPageProxy = exports.PDFDocumentProxy = exports.PDFDocumentLoadingTask = exports.PDFDataRangeTransport = exports.LoopbackPort = exports.DefaultStandardFontDataFactory = exports.DefaultCanvasFactory = exports.DefaultCMapReaderFactory = void 0;
+exports.build = exports.RenderTask = exports.PDFWorkerUtil = exports.PDFWorker = exports.PDFPageProxy = exports.PDFDocumentProxy = exports.PDFDocumentLoadingTask = exports.PDFDataRangeTransport = exports.LoopbackPort = exports.DefaultStandardFontDataFactory = exports.DefaultCanvasFactory = exports.DefaultCMapReaderFactory = void 0;
 exports.getDocument = getDocument;
 exports.setPDFNetworkStreamFactory = setPDFNetworkStreamFactory;
 exports.version = void 0;
 
 var _util = require("../shared/util.js");
 
+var _annotation_storage = require("./annotation_storage.js");
+
 var _display_utils = require("./display_utils.js");
 
 var _font_loader = require("./font_loader.js");
-
-var _node_utils = require("./node_utils.js");
-
-var _annotation_storage = require("./annotation_storage.js");
 
 var _canvas = require("./canvas.js");
 
@@ -57,12 +55,25 @@ var _xfa_text = require("./xfa_text.js");
 
 const DEFAULT_RANGE_CHUNK_SIZE = 65536;
 const RENDERING_CANCELLED_TIMEOUT = 100;
-const DefaultCanvasFactory = _is_node.isNodeJS ? _node_utils.NodeCanvasFactory : _display_utils.DOMCanvasFactory;
+let DefaultCanvasFactory = _display_utils.DOMCanvasFactory;
 exports.DefaultCanvasFactory = DefaultCanvasFactory;
-const DefaultCMapReaderFactory = _is_node.isNodeJS ? _node_utils.NodeCMapReaderFactory : _display_utils.DOMCMapReaderFactory;
+let DefaultCMapReaderFactory = _display_utils.DOMCMapReaderFactory;
 exports.DefaultCMapReaderFactory = DefaultCMapReaderFactory;
-const DefaultStandardFontDataFactory = _is_node.isNodeJS ? _node_utils.NodeStandardFontDataFactory : _display_utils.DOMStandardFontDataFactory;
+let DefaultStandardFontDataFactory = _display_utils.DOMStandardFontDataFactory;
 exports.DefaultStandardFontDataFactory = DefaultStandardFontDataFactory;
+
+if (_is_node.isNodeJS) {
+  const {
+    NodeCanvasFactory,
+    NodeCMapReaderFactory,
+    NodeStandardFontDataFactory
+  } = require("./node_utils.js");
+
+  exports.DefaultCanvasFactory = DefaultCanvasFactory = NodeCanvasFactory;
+  exports.DefaultCMapReaderFactory = DefaultCMapReaderFactory = NodeCMapReaderFactory;
+  exports.DefaultStandardFontDataFactory = DefaultStandardFontDataFactory = NodeStandardFontDataFactory;
+}
+
 let createPDFNetworkStream;
 
 function setPDFNetworkStreamFactory(pdfNetworkStreamFactory) {
@@ -87,7 +98,7 @@ function getDocument(src) {
     };
   } else {
     if (typeof src !== "object") {
-      throw new Error("Invalid parameter in getDocument, " + "need either string, URL, Uint8Array, or parameter object.");
+      throw new Error("Invalid parameter in getDocument, " + "need either string, URL, TypedArray, or parameter object.");
     }
 
     if (!src.url && !src.data && !src.range) {
@@ -140,7 +151,7 @@ function getDocument(src) {
         } else if ((0, _util.isArrayBuffer)(value)) {
           params[key] = new Uint8Array(value);
         } else {
-          throw new Error("Invalid PDF binary data: either typed array, " + "string, or array-like object is expected in the data property.");
+          throw new Error("Invalid PDF binary data: either TypedArray, " + "string, or array-like object is expected in the data property.");
         }
 
         continue;
@@ -149,7 +160,6 @@ function getDocument(src) {
     params[key] = value;
   }
 
-  params.rangeChunkSize = params.rangeChunkSize || DEFAULT_RANGE_CHUNK_SIZE;
   params.CMapReaderFactory = params.CMapReaderFactory || DefaultCMapReaderFactory;
   params.StandardFontDataFactory = params.StandardFontDataFactory || DefaultStandardFontDataFactory;
   params.ignoreErrors = params.stopAtErrors !== true;
@@ -157,12 +167,24 @@ function getDocument(src) {
   params.pdfBug = params.pdfBug === true;
   params.enableXfa = params.enableXfa === true;
 
+  if (!Number.isInteger(params.rangeChunkSize) || params.rangeChunkSize < 1) {
+    params.rangeChunkSize = DEFAULT_RANGE_CHUNK_SIZE;
+  }
+
   if (typeof params.docBaseUrl !== "string" || (0, _display_utils.isDataScheme)(params.docBaseUrl)) {
     params.docBaseUrl = null;
   }
 
-  if (!Number.isInteger(params.maxImageSize)) {
+  if (!Number.isInteger(params.maxImageSize) || params.maxImageSize < -1) {
     params.maxImageSize = -1;
+  }
+
+  if (typeof params.cMapUrl !== "string") {
+    params.cMapUrl = null;
+  }
+
+  if (typeof params.standardFontDataUrl !== "string") {
+    params.standardFontDataUrl = null;
   }
 
   if (typeof params.useWorkerFetch !== "boolean") {
@@ -181,7 +203,7 @@ function getDocument(src) {
     params.useSystemFonts = !_is_node.isNodeJS && !params.disableFontFace;
   }
 
-  if (typeof params.ownerDocument === "undefined") {
+  if (typeof params.ownerDocument !== "object" || params.ownerDocument === null) {
     params.ownerDocument = globalThis.document;
   }
 
@@ -270,7 +292,7 @@ async function _fetchDocument(worker, source, pdfDataRangeTransport, docId) {
 
   const workerId = await worker.messageHandler.sendWithPromise("GetDocRequest", {
     docId,
-    apiVersion: '2.12.313',
+    apiVersion: '2.16.105',
     source: {
       data: source.data,
       url: source.url,
@@ -291,6 +313,10 @@ async function _fetchDocument(worker, source, pdfDataRangeTransport, docId) {
     standardFontDataUrl: source.useWorkerFetch ? source.standardFontDataUrl : null
   });
 
+  if (source.data) {
+    source.data = null;
+  }
+
   if (worker.destroyed) {
     throw new Error("Worker was destroyed");
   }
@@ -299,17 +325,13 @@ async function _fetchDocument(worker, source, pdfDataRangeTransport, docId) {
 }
 
 class PDFDocumentLoadingTask {
-  static get idCounters() {
-    return (0, _util.shadow)(this, "idCounters", {
-      doc: 0
-    });
-  }
+  static #docId = 0;
 
   constructor() {
     this._capability = (0, _util.createPromiseCapability)();
     this._transport = null;
     this._worker = null;
-    this.docId = `d${PDFDocumentLoadingTask.idCounters.doc++}`;
+    this.docId = `d${PDFDocumentLoadingTask.#docId++}`;
     this.destroyed = false;
     this.onPassword = null;
     this.onProgress = null;
@@ -581,6 +603,7 @@ class PDFPageProxy {
     this._pdfBug = pdfBug;
     this.commonObjs = transport.commonObjs;
     this.objs = new PDFObjects();
+    this._bitmaps = new Set();
     this.cleanupAfterRender = false;
     this.pendingCleanup = false;
     this._intentStates = new Map();
@@ -685,7 +708,9 @@ class PDFPageProxy {
     canvasFactory = null,
     background = null,
     optionalContentConfigPromise = null,
-    annotationCanvasMap = null
+    annotationCanvasMap = null,
+    pageColors = null,
+    printAnnotationStorage = null
   }) {
     if (arguments[0]?.renderInteractiveForms !== undefined) {
       (0, _display_utils.deprecated)("render no longer accepts the `renderInteractiveForms`-option, " + "please use the `annotationMode`-option instead.");
@@ -707,7 +732,7 @@ class PDFPageProxy {
       this._stats.time("Overall");
     }
 
-    const intentArgs = this._transport.getRenderingIntent(intent, annotationMode);
+    const intentArgs = this._transport.getRenderingIntent(intent, annotationMode, printAnnotationStorage);
 
     this.pendingCleanup = false;
 
@@ -738,7 +763,8 @@ class PDFPageProxy {
       intentState.operatorList = {
         fnArray: [],
         argsArray: [],
-        lastChunk: false
+        lastChunk: false,
+        separateAnnots: null
       };
 
       if (this._stats) {
@@ -791,7 +817,8 @@ class PDFPageProxy {
       pageIndex: this._pageIndex,
       canvasFactory: canvasFactoryInstance,
       useRequestAnimationFrame: !intentPrint,
-      pdfBug: this._pdfBug
+      pdfBug: this._pdfBug,
+      pageColors
     });
     (intentState.renderTasks ||= new Set()).add(internalRenderTask);
     const renderTask = internalRenderTask.task;
@@ -816,7 +843,8 @@ class PDFPageProxy {
 
   getOperatorList({
     intent = "display",
-    annotationMode = _util.AnnotationMode.ENABLE
+    annotationMode = _util.AnnotationMode.ENABLE,
+    printAnnotationStorage = null
   } = {}) {
     function operatorListChanged() {
       if (intentState.operatorList.lastChunk) {
@@ -825,7 +853,7 @@ class PDFPageProxy {
       }
     }
 
-    const intentArgs = this._transport.getRenderingIntent(intent, annotationMode, true);
+    const intentArgs = this._transport.getRenderingIntent(intent, annotationMode, printAnnotationStorage, true);
 
     let intentState = this._intentStates.get(intentArgs.cacheKey);
 
@@ -845,7 +873,8 @@ class PDFPageProxy {
       intentState.operatorList = {
         fnArray: [],
         argsArray: [],
-        lastChunk: false
+        lastChunk: false,
+        separateAnnots: null
       };
 
       if (this._stats) {
@@ -859,14 +888,12 @@ class PDFPageProxy {
   }
 
   streamTextContent({
-    normalizeWhitespace = false,
     disableCombineTextItems = false,
     includeMarkedContent = false
   } = {}) {
     const TEXT_CONTENT_CHUNK_SIZE = 100;
     return this._transport.messageHandler.sendWithStream("GetTextContent", {
       pageIndex: this._pageIndex,
-      normalizeWhitespace: normalizeWhitespace === true,
       combineTextItems: disableCombineTextItems !== true,
       includeMarkedContent: includeMarkedContent === true
     }, {
@@ -940,6 +967,12 @@ class PDFPageProxy {
 
     this.objs.clear();
 
+    for (const bitmap of this._bitmaps) {
+      bitmap.close();
+    }
+
+    this._bitmaps.clear();
+
     this._annotationPromises.clear();
 
     this._jsActionsPromise = null;
@@ -980,6 +1013,12 @@ class PDFPageProxy {
       this._stats = new _display_utils.StatTimer();
     }
 
+    for (const bitmap of this._bitmaps) {
+      bitmap.close();
+    }
+
+    this._bitmaps.clear();
+
     this.pendingCleanup = false;
     return true;
   }
@@ -1007,6 +1046,7 @@ class PDFPageProxy {
     }
 
     intentState.operatorList.lastChunk = operatorListChunk.lastChunk;
+    intentState.operatorList.separateAnnots = operatorListChunk.separateAnnots;
 
     for (const internalRenderTask of intentState.renderTasks) {
       internalRenderTask.operatorListChanged();
@@ -1019,13 +1059,14 @@ class PDFPageProxy {
 
   _pumpOperatorList({
     renderingIntent,
-    cacheKey
+    cacheKey,
+    annotationStorageMap
   }) {
     const readableStream = this._transport.messageHandler.sendWithStream("GetOperatorList", {
       pageIndex: this._pageIndex,
       intent: renderingIntent,
       cacheKey,
-      annotationStorage: renderingIntent & _util.RenderingIntentFlag.ANNOTATIONS_STORAGE ? this._transport.annotationStorage.serializable : null
+      annotationStorage: annotationStorageMap
     });
 
     const reader = readableStream.getReader();
@@ -1142,90 +1183,8 @@ class LoopbackPort {
   }
 
   postMessage(obj, transfers) {
-    function cloneValue(object) {
-      if (globalThis.structuredClone) {
-        return globalThis.structuredClone(object, transfers);
-      }
-
-      function fallbackCloneValue(value) {
-        if (typeof value === "function" || typeof value === "symbol" || value instanceof URL) {
-          throw new Error(`LoopbackPort.postMessage - cannot clone: ${value?.toString()}`);
-        }
-
-        if (typeof value !== "object" || value === null) {
-          return value;
-        }
-
-        if (cloned.has(value)) {
-          return cloned.get(value);
-        }
-
-        let buffer, result;
-
-        if ((buffer = value.buffer) && (0, _util.isArrayBuffer)(buffer)) {
-          if (transfers?.includes(buffer)) {
-            result = new value.constructor(buffer, value.byteOffset, value.byteLength);
-          } else {
-            result = new value.constructor(value);
-          }
-
-          cloned.set(value, result);
-          return result;
-        }
-
-        if (value instanceof Map) {
-          result = new Map();
-          cloned.set(value, result);
-
-          for (const [key, val] of value) {
-            result.set(key, fallbackCloneValue(val));
-          }
-
-          return result;
-        }
-
-        if (value instanceof Set) {
-          result = new Set();
-          cloned.set(value, result);
-
-          for (const val of value) {
-            result.add(fallbackCloneValue(val));
-          }
-
-          return result;
-        }
-
-        result = Array.isArray(value) ? [] : Object.create(null);
-        cloned.set(value, result);
-
-        for (const i in value) {
-          let desc,
-              p = value;
-
-          while (!(desc = Object.getOwnPropertyDescriptor(p, i))) {
-            p = Object.getPrototypeOf(p);
-          }
-
-          if (typeof desc.value === "undefined") {
-            continue;
-          }
-
-          if (typeof desc.value === "function" && !value.hasOwnProperty?.(i)) {
-            continue;
-          }
-
-          result[i] = fallbackCloneValue(desc.value);
-        }
-
-        return result;
-      }
-
-      const cloned = new WeakMap();
-      return fallbackCloneValue(object);
-    }
-
     const event = {
-      data: cloneValue(obj)
+      data: structuredClone(obj, transfers)
     };
 
     this._deferred.then(() => {
@@ -1257,6 +1216,7 @@ const PDFWorkerUtil = {
   fallbackWorkerSrc: null,
   fakeWorkerId: 0
 };
+exports.PDFWorkerUtil = PDFWorkerUtil;
 {
   if (_is_node.isNodeJS && typeof require === "function") {
     PDFWorkerUtil.isWorkerDisabled = true;
@@ -1269,6 +1229,23 @@ const PDFWorkerUtil = {
     }
   }
 
+  PDFWorkerUtil.isSameOrigin = function (baseUrl, otherUrl) {
+    let base;
+
+    try {
+      base = new URL(baseUrl);
+
+      if (!base.origin || base.origin === "null") {
+        return false;
+      }
+    } catch (e) {
+      return false;
+    }
+
+    const other = new URL(otherUrl, base);
+    return base.origin === other.origin;
+  };
+
   PDFWorkerUtil.createCDNWrapper = function (url) {
     const wrapper = `importScripts("${url}");`;
     return URL.createObjectURL(new Blob([wrapper]));
@@ -1276,16 +1253,14 @@ const PDFWorkerUtil = {
 }
 
 class PDFWorker {
-  static get _workerPorts() {
-    return (0, _util.shadow)(this, "_workerPorts", new WeakMap());
-  }
+  static #workerPorts = new WeakMap();
 
   constructor({
     name = null,
     port = null,
     verbosity = (0, _util.getVerbosityLevel)()
   } = {}) {
-    if (port && PDFWorker._workerPorts.has(port)) {
+    if (port && PDFWorker.#workerPorts.has(port)) {
       throw new Error("Cannot use more than one PDFWorker per port.");
     }
 
@@ -1298,7 +1273,7 @@ class PDFWorker {
     this._messageHandler = null;
 
     if (port) {
-      PDFWorker._workerPorts.set(port, this);
+      PDFWorker.#workerPorts.set(port, this);
 
       this._initializeFromPort(port);
 
@@ -1330,11 +1305,13 @@ class PDFWorker {
   }
 
   _initialize() {
-    if (typeof Worker !== "undefined" && !PDFWorkerUtil.isWorkerDisabled && !PDFWorker._mainThreadWorkerMessageHandler) {
-      let workerSrc = PDFWorker.workerSrc;
+    if (!PDFWorkerUtil.isWorkerDisabled && !PDFWorker._mainThreadWorkerMessageHandler) {
+      let {
+        workerSrc
+      } = PDFWorker;
 
       try {
-        if (!(0, _util.isSameOrigin)(window.location.href, workerSrc)) {
+        if (!PDFWorkerUtil.isSameOrigin(window.location.href, workerSrc)) {
           workerSrc = PDFWorkerUtil.createCDNWrapper(new URL(workerSrc, window.location).href);
         }
 
@@ -1401,15 +1378,8 @@ class PDFWorker {
         });
 
         const sendTest = () => {
-          const testObj = new Uint8Array([255]);
-
-          try {
-            messageHandler.send("test", testObj, [testObj.buffer]);
-          } catch (ex) {
-            (0, _util.warn)("Cannot use postMessage transfers.");
-            testObj[0] = 0;
-            messageHandler.send("test", testObj);
-          }
+          const testObj = new Uint8Array();
+          messageHandler.send("test", testObj, [testObj.buffer]);
         };
 
         sendTest();
@@ -1462,8 +1432,7 @@ class PDFWorker {
       this._webWorker = null;
     }
 
-    PDFWorker._workerPorts.delete(this._port);
-
+    PDFWorker.#workerPorts.delete(this._port);
     this._port = null;
 
     if (this._messageHandler) {
@@ -1478,8 +1447,8 @@ class PDFWorker {
       throw new Error("PDFWorker.fromPort - invalid method signature.");
     }
 
-    if (this._workerPorts.has(params.port)) {
-      return this._workerPorts.get(params.port);
+    if (this.#workerPorts.has(params.port)) {
+      return this.#workerPorts.get(params.port);
     }
 
     return new PDFWorker(params);
@@ -1585,9 +1554,9 @@ class WorkerTransport {
     return this.#docStats;
   }
 
-  getRenderingIntent(intent, annotationMode = _util.AnnotationMode.ENABLE, isOpList = false) {
+  getRenderingIntent(intent, annotationMode = _util.AnnotationMode.ENABLE, printAnnotationStorage = null, isOpList = false) {
     let renderingIntent = _util.RenderingIntentFlag.DISPLAY;
-    let lastModified = "";
+    let annotationMap = null;
 
     switch (intent) {
       case "any":
@@ -1619,7 +1588,8 @@ class WorkerTransport {
 
       case _util.AnnotationMode.ENABLE_STORAGE:
         renderingIntent += _util.RenderingIntentFlag.ANNOTATIONS_STORAGE;
-        lastModified = this.annotationStorage.lastModified;
+        const annotationStorage = renderingIntent & _util.RenderingIntentFlag.PRINT && printAnnotationStorage instanceof _annotation_storage.PrintAnnotationStorage ? printAnnotationStorage : this.annotationStorage;
+        annotationMap = annotationStorage.serializable;
         break;
 
       default:
@@ -1632,7 +1602,8 @@ class WorkerTransport {
 
     return {
       renderingIntent,
-      cacheKey: `${renderingIntent}_${lastModified}`
+      cacheKey: `${renderingIntent}_${_annotation_storage.AnnotationStorage.getHash(annotationMap)}`,
+      annotationStorageMap: annotationMap
     };
   }
 
@@ -1836,9 +1807,13 @@ class WorkerTransport {
 
       if (loadingTask.onPassword) {
         const updatePassword = password => {
-          this._passwordCapability.resolve({
-            password
-          });
+          if (password instanceof Error) {
+            this._passwordCapability.reject(password);
+          } else {
+            this._passwordCapability.resolve({
+              password
+            });
+          }
         };
 
         try {
@@ -1944,8 +1919,25 @@ class WorkerTransport {
           pageProxy.objs.resolve(id, imageData);
           const MAX_IMAGE_SIZE_TO_STORE = 8000000;
 
-          if (imageData?.data?.length > MAX_IMAGE_SIZE_TO_STORE) {
-            pageProxy.cleanupAfterRender = true;
+          if (imageData) {
+            let length;
+
+            if (imageData.bitmap) {
+              const {
+                bitmap,
+                width,
+                height
+              } = imageData;
+              length = width * height * 4;
+
+              pageProxy._bitmaps.add(bitmap);
+            } else {
+              length = imageData.data?.length || 0;
+            }
+
+            if (length > MAX_IMAGE_SIZE_TO_STORE) {
+              pageProxy.cleanupAfterRender = true;
+            }
           }
 
           break;
@@ -2019,7 +2011,7 @@ class WorkerTransport {
 
   getPage(pageNumber) {
     if (!Number.isInteger(pageNumber) || pageNumber <= 0 || pageNumber > this._numPages) {
-      return Promise.reject(new Error("Invalid page request"));
+      return Promise.reject(new Error("Invalid page request."));
     }
 
     const pageIndex = pageNumber - 1,
@@ -2045,8 +2037,13 @@ class WorkerTransport {
   }
 
   getPageIndex(ref) {
+    if (typeof ref !== "object" || ref === null || !Number.isInteger(ref.num) || ref.num < 0 || !Number.isInteger(ref.gen) || ref.gen < 0) {
+      return Promise.reject(new Error("Invalid pageIndex request."));
+    }
+
     return this.messageHandler.sendWithPromise("GetPageIndex", {
-      ref
+      num: ref.num,
+      gen: ref.gen
     });
   }
 
@@ -2204,32 +2201,31 @@ class WorkerTransport {
 }
 
 class PDFObjects {
-  constructor() {
-    this._objs = Object.create(null);
-  }
+  #objs = Object.create(null);
 
-  _ensureObj(objId) {
-    if (this._objs[objId]) {
-      return this._objs[objId];
+  #ensureObj(objId) {
+    const obj = this.#objs[objId];
+
+    if (obj) {
+      return obj;
     }
 
-    return this._objs[objId] = {
+    return this.#objs[objId] = {
       capability: (0, _util.createPromiseCapability)(),
-      data: null,
-      resolved: false
+      data: null
     };
   }
 
   get(objId, callback = null) {
     if (callback) {
-      this._ensureObj(objId).capability.promise.then(callback);
-
+      const obj = this.#ensureObj(objId);
+      obj.capability.promise.then(() => callback(obj.data));
       return null;
     }
 
-    const obj = this._objs[objId];
+    const obj = this.#objs[objId];
 
-    if (!obj || !obj.resolved) {
+    if (!obj?.capability.settled) {
       throw new Error(`Requesting object that isn't resolved yet ${objId}.`);
     }
 
@@ -2237,36 +2233,51 @@ class PDFObjects {
   }
 
   has(objId) {
-    const obj = this._objs[objId];
-    return obj?.resolved || false;
+    const obj = this.#objs[objId];
+    return obj?.capability.settled || false;
   }
 
-  resolve(objId, data) {
-    const obj = this._ensureObj(objId);
-
-    obj.resolved = true;
+  resolve(objId, data = null) {
+    const obj = this.#ensureObj(objId);
     obj.data = data;
-    obj.capability.resolve(data);
+    obj.capability.resolve();
   }
 
   clear() {
-    this._objs = Object.create(null);
+    this.#objs = Object.create(null);
   }
 
 }
 
 class RenderTask {
+  #internalRenderTask = null;
+
   constructor(internalRenderTask) {
-    this._internalRenderTask = internalRenderTask;
+    this.#internalRenderTask = internalRenderTask;
     this.onContinue = null;
   }
 
   get promise() {
-    return this._internalRenderTask.capability.promise;
+    return this.#internalRenderTask.capability.promise;
   }
 
   cancel() {
-    this._internalRenderTask.cancel();
+    this.#internalRenderTask.cancel();
+  }
+
+  get separateAnnots() {
+    const {
+      separateAnnots
+    } = this.#internalRenderTask.operatorList;
+
+    if (!separateAnnots) {
+      return false;
+    }
+
+    const {
+      annotationCanvasMap
+    } = this.#internalRenderTask;
+    return separateAnnots.form || separateAnnots.canvas && annotationCanvasMap?.size > 0;
   }
 
 }
@@ -2274,9 +2285,7 @@ class RenderTask {
 exports.RenderTask = RenderTask;
 
 class InternalRenderTask {
-  static get canvasInUse() {
-    return (0, _util.shadow)(this, "canvasInUse", new WeakSet());
-  }
+  static #canvasInUse = new WeakSet();
 
   constructor({
     callback,
@@ -2288,7 +2297,8 @@ class InternalRenderTask {
     pageIndex,
     canvasFactory,
     useRequestAnimationFrame = false,
-    pdfBug = false
+    pdfBug = false,
+    pageColors = null
   }) {
     this.callback = callback;
     this.params = params;
@@ -2300,6 +2310,7 @@ class InternalRenderTask {
     this._pageIndex = pageIndex;
     this.canvasFactory = canvasFactory;
     this._pdfBug = pdfBug;
+    this.pageColors = pageColors;
     this.running = false;
     this.graphicsReadyCallback = null;
     this.graphicsReady = false;
@@ -2327,11 +2338,11 @@ class InternalRenderTask {
     }
 
     if (this._canvas) {
-      if (InternalRenderTask.canvasInUse.has(this._canvas)) {
+      if (InternalRenderTask.#canvasInUse.has(this._canvas)) {
         throw new Error("Cannot use the same canvas during multiple render() operations. " + "Use different canvas or ensure previous operations were " + "cancelled or completed.");
       }
 
-      InternalRenderTask.canvasInUse.add(this._canvas);
+      InternalRenderTask.#canvasInUse.add(this._canvas);
     }
 
     if (this._pdfBug && globalThis.StepperManager?.enabled) {
@@ -2347,7 +2358,7 @@ class InternalRenderTask {
       imageLayer,
       background
     } = this.params;
-    this.gfx = new _canvas.CanvasGraphics(canvasContext, this.commonObjs, this.objs, this.canvasFactory, imageLayer, optionalContentConfig, this.annotationCanvasMap);
+    this.gfx = new _canvas.CanvasGraphics(canvasContext, this.commonObjs, this.objs, this.canvasFactory, imageLayer, optionalContentConfig, this.annotationCanvasMap, this.pageColors);
     this.gfx.beginDrawing({
       transform,
       viewport,
@@ -2371,7 +2382,7 @@ class InternalRenderTask {
     }
 
     if (this._canvas) {
-      InternalRenderTask.canvasInUse.delete(this._canvas);
+      InternalRenderTask.#canvasInUse.delete(this._canvas);
     }
 
     this.callback(error || new _display_utils.RenderingCancelledException(`Rendering cancelled, page ${this._pageIndex + 1}`, "canvas"));
@@ -2435,7 +2446,7 @@ class InternalRenderTask {
         this.gfx.endDrawing();
 
         if (this._canvas) {
-          InternalRenderTask.canvasInUse.delete(this._canvas);
+          InternalRenderTask.#canvasInUse.delete(this._canvas);
         }
 
         this.callback();
@@ -2445,7 +2456,7 @@ class InternalRenderTask {
 
 }
 
-const version = '2.12.313';
+const version = '2.16.105';
 exports.version = version;
-const build = 'a2ae56f39';
+const build = '172ccdbe5';
 exports.build = build;

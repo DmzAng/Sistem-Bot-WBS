@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -45,7 +45,7 @@ var _l10n_utils = require("./l10n_utils.js");
 class FirefoxCom {
   static requestSync(action, data) {
     const request = document.createTextNode("");
-    document.documentElement.appendChild(request);
+    document.documentElement.append(request);
     const sender = document.createEvent("CustomEvent");
     sender.initCustomEvent("pdf.js.message", true, false, {
       action,
@@ -77,7 +77,7 @@ class FirefoxCom {
       });
     }
 
-    document.documentElement.appendChild(request);
+    document.documentElement.append(request);
     const sender = document.createEvent("CustomEvent");
     sender.initCustomEvent("pdf.js.message", true, false, {
       action,
@@ -108,13 +108,11 @@ class DownloadManager {
     const blobUrl = URL.createObjectURL(new Blob([data], {
       type: contentType
     }));
-    FirefoxCom.requestAsync("download", {
+    FirefoxCom.request("download", {
       blobUrl,
       originalUrl: blobUrl,
       filename,
       isAttachment: true
-    }).then(error => {
-      URL.revokeObjectURL(blobUrl);
     });
   }
 
@@ -150,19 +148,12 @@ class DownloadManager {
     return false;
   }
 
-  download(blob, url, filename, sourceEventType = "download") {
+  download(blob, url, filename) {
     const blobUrl = URL.createObjectURL(blob);
-    FirefoxCom.requestAsync("download", {
+    FirefoxCom.request("download", {
       blobUrl,
       originalUrl: url,
-      filename,
-      sourceEventType
-    }).then(error => {
-      if (error) {
-        console.error("`ChromeActions.download` failed.");
-      }
-
-      URL.revokeObjectURL(blobUrl);
+      filename
     });
   }
 
@@ -206,7 +197,7 @@ class MozL10n {
 }
 
 (function listenFindEvents() {
-  const events = ["find", "findagain", "findhighlightallchange", "findcasesensitivitychange", "findentirewordchange", "findbarclose"];
+  const events = ["find", "findagain", "findhighlightallchange", "findcasesensitivitychange", "findentirewordchange", "findbarclose", "finddiacriticmatchingchange"];
   const findLen = "find".length;
 
   const handleEvent = function ({
@@ -233,7 +224,8 @@ class MozL10n {
       caseSensitive: !!detail.caseSensitive,
       entireWord: !!detail.entireWord,
       highlightAll: !!detail.highlightAll,
-      findPrevious: !!detail.findPrevious
+      findPrevious: !!detail.findPrevious,
+      matchDiacritics: !!detail.matchDiacritics
     });
   };
 
@@ -276,12 +268,29 @@ class MozL10n {
       return;
     }
 
-    _app.PDFViewerApplication.eventBus.dispatch(type, {
+    _app.PDFViewerApplication.eventBus.dispatch("download", {
       source: window
     });
   };
 
   window.addEventListener("save", handleEvent);
+})();
+
+(function listenEditingEvent() {
+  const handleEvent = function ({
+    detail
+  }) {
+    if (!_app.PDFViewerApplication.initialized) {
+      return;
+    }
+
+    _app.PDFViewerApplication.eventBus.dispatch("editingaction", {
+      source: window,
+      name: detail.name
+    });
+  };
+
+  window.addEventListener("editingaction", handleEvent);
 })();
 
 class FirefoxComDataRangeTransport extends _pdf.PDFDataRangeTransport {
@@ -385,10 +394,6 @@ class FirefoxExternalServices extends _app.DefaultExternalServices {
     FirefoxCom.requestSync("initPassiveLoading", null);
   }
 
-  static async fallback(data) {
-    return FirefoxCom.requestAsync("fallback", data);
-  }
-
   static reportTelemetry(data) {
     FirefoxCom.request("reportTelemetry", JSON.stringify(data));
   }
@@ -399,6 +404,10 @@ class FirefoxExternalServices extends _app.DefaultExternalServices {
 
   static createPreferences() {
     return new FirefoxPreferences();
+  }
+
+  static updateEditorStates(data) {
+    FirefoxCom.request("updateEditorStates", data);
   }
 
   static createL10n(options) {
@@ -439,7 +448,7 @@ document.mozL10n.setExternalLocalizerServices({
   },
 
   getStrings(key) {
-    return FirefoxCom.requestSync("getStrings", key);
+    return FirefoxCom.requestSync("getStrings", null);
   }
 
 });

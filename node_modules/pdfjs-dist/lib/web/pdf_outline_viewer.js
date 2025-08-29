@@ -1,8 +1,8 @@
 /**
  * @licstart The following is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  *
- * Copyright 2021 Mozilla Foundation
+ * Copyright 2022 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  * @licend The above is the entire license notice for the
- * Javascript code in this page
+ * JavaScript code in this page
  */
 "use strict";
 
@@ -207,7 +207,7 @@ class PDFOutlineViewer extends _base_tree_viewer.BaseTreeViewer {
         this._setStyles(element, item);
 
         element.textContent = this._normalizeTextContent(item.title);
-        div.appendChild(element);
+        div.append(element);
 
         if (item.items.length > 0) {
           hasAnyNesting = true;
@@ -216,14 +216,14 @@ class PDFOutlineViewer extends _base_tree_viewer.BaseTreeViewer {
 
           const itemsDiv = document.createElement("div");
           itemsDiv.className = "treeItems";
-          div.appendChild(itemsDiv);
+          div.append(itemsDiv);
           queue.push({
             parent: itemsDiv,
             items: item.items
           });
         }
 
-        levelData.parent.appendChild(div);
+        levelData.parent.append(div);
         outlineCount++;
       }
     }

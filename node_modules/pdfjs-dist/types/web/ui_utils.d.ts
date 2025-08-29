@@ -93,10 +93,11 @@ export function backtrackBeforeAllVisibleElements(index: number, views: any[], t
  * @returns {number} Index of the first array element to pass the test,
  *                   or |items.length| if no such element exists.
  */
-export function binarySearchFirstItem(items: any, condition: any): number;
+export function binarySearchFirstItem(items: any, condition: any, start?: number): number;
 export const DEFAULT_SCALE: 1;
 export const DEFAULT_SCALE_DELTA: 1.1;
 export const DEFAULT_SCALE_VALUE: "auto";
+export const docStyle: CSSStyleDeclaration | null;
 /**
  * Get the active or focused element in current DOM.
  *
@@ -106,13 +107,6 @@ export const DEFAULT_SCALE_VALUE: "auto";
  * @returns {Element} the truly active or focused element.
  */
 export function getActiveOrFocusedElement(): Element;
-/**
- * Returns scale factor for the canvas. It makes sense for the HiDPI displays.
- * @returns {Object} The object with horizontal (sx) and vertical (sy)
- *                   scales. The scaled property is set to false if scaling is
- *                   not required, true otherwise.
- */
-export function getOutputScale(ctx: any): Object;
 /**
  * @typedef {Object} GetPageSizeInchesParameters
  * @property {number[]} view
@@ -179,6 +173,23 @@ export function noContextMenuHandler(evt: any): void;
 export function normalizeWheelEventDelta(evt: any): number;
 export function normalizeWheelEventDirection(evt: any): number;
 /**
+ * Scale factors for the canvas, necessary with HiDPI displays.
+ */
+export class OutputScale {
+    /**
+     * @type {number} Horizontal scale.
+     */
+    sx: number;
+    /**
+     * @type {number} Vertical scale.
+     */
+    sy: number;
+    /**
+     * @type {boolean} Returns `true` when scaling is required, `false` otherwise.
+     */
+    get scaled(): boolean;
+}
+/**
  * Helper function to parse query string (e.g. ?param1=value&param2=...).
  * @param {string}
  * @returns {Map}
@@ -191,30 +202,23 @@ export namespace PresentationModeState {
     const FULLSCREEN: number;
 }
 export class ProgressBar {
-    constructor(id: any, { height, width, units }?: {
-        height: any;
-        width: any;
-        units: any;
-    });
-    visible: boolean;
-    div: Element | null;
-    bar: ParentNode | null;
-    height: any;
-    width: any;
-    units: any;
-    set percent(arg: any);
-    get percent(): any;
-    _updateBar(): void;
-    _indeterminate: boolean | undefined;
-    _percent: any;
+    constructor(id: any, ...args: any[]);
+    set percent(arg: number);
+    get percent(): number;
     setWidth(viewer: any): void;
     hide(): void;
     show(): void;
+    #private;
 }
-export namespace RendererType {
-    const CANVAS: string;
-    const SVG: string;
-}
+/**
+ * @param {string} str
+ * @param {boolean} [replaceInvisible]
+ */
+export function removeNullCharacters(str: string, replaceInvisible?: boolean | undefined): string;
+export const RendererType: {
+    CANVAS: string;
+    SVG: string;
+} | null;
 export namespace RenderingStates {
     const INITIAL: number;
     const RUNNING: number;
