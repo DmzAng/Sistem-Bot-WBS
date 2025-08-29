@@ -1,4 +1,6 @@
 require("dotenv").config();
+process.env.TZ = "Asia/Makassar";
+
 const { createBot } = require("./src/services/telegramBotService");
 const StateManager = require("./stateManager");
 const registrationHandler = require("./src/handlers/registrationHandler");
@@ -10,7 +12,7 @@ const rekapHandler = require("./src/handlers/rekapHandler");
 const persentaseHandler = require("./src/handlers/persentaseHandler");
 const visitPlanHandler = require("./src/handlers/visitPlanHandler");
 const visitExecutionHandler = require("./src/handlers/visitExecutionHandler");
-const pool = require('./config/database');
+const pool = require("./config/database");
 
 async function testDbConnection() {
   try {

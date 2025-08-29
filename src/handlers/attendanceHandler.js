@@ -86,10 +86,14 @@ async function getLocationName(lat, lon) {
 
 async function sendDataToSheets(entityType) {
   try {
+    // Dapatkan waktu dengan timezone Indonesia Tengah (WITA)
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
-    const day = now.getDate();
+    const offset = 8 * 60; // UTC+8 dalam menit
+    const localTime = new Date(now.getTime() + offset * 60 * 1000);
+
+    const year = localTime.getUTCFullYear();
+    const month = localTime.getUTCMonth() + 1;
+    const day = localTime.getUTCDate();
 
     // Dapatkan data absen hari ini dari database
     const records = await dbService.getDailyAttendanceForEntity(
@@ -153,29 +157,34 @@ async function saveAttendanceData(bot, userStates, chatId, state) {
     const isSehat = state.healthStatus === "Sehat";
     console.log(`🩺 Health status=${state.healthStatus}, isSehat=${isSehat}`);
 
-    // await sendDataToSheets(state.entityType);
-
     if (isSehat) {
       if (!state.location || !state.photo) {
         throw new Error("Data lokasi atau foto tidak lengkap");
       }
     }
 
-    // await generateAndSendRekap(bot, state.entityType);
-
     const lokasiData = isSehat
       ? await getLocationName(state.location?.lat, state.location?.lon)
       : { full_address: "Tidak diperlukan" };
     console.log(`📍 Lokasi data resolved:`, lokasiData);
 
+    // Dapatkan waktu dengan timezone Indonesia Tengah (WITA)
     const now = new Date();
-    const day = String(now.getDate()).padStart(2, "0");
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const year = now.getFullYear();
+    const offset = 8 * 60;
+    const localTime = new Date(now.getTime() + offset * 60 * 1000);
+
+    const day = String(localTime.getUTCDate()).padStart(2, "0");
+    const month = String(localTime.getUTCMonth() + 1).padStart(2, "0");
+    const year = localTime.getUTCFullYear();
     const formattedDate = `${year}-${month}-${day}`;
-    const formattedTime = [now.getHours(), now.getMinutes(), now.getSeconds()]
+    const formattedTime = [
+      localTime.getUTCHours(),
+      localTime.getUTCMinutes(),
+      localTime.getUTCSeconds(),
+    ]
       .map((n) => String(n).padStart(2, "0"))
       .join(":");
+
     console.log(`⏰ Date=${formattedDate}, Time=${formattedTime}`);
 
     // Dapatkan user dari database
@@ -184,20 +193,19 @@ async function saveAttendanceData(bot, userStates, chatId, state) {
       throw new Error("User tidak ditemukan di database");
     }
 
-    // Tentukan status kehadiran berdasarkan entity type
     let statusKehadiran;
     if (isSehat) {
       if (state.entityType === "MAGANG") {
-        statusKehadiran = now.getHours() < 9 ? "HADIR" : "TERLAMBAT";
+        // Untuk Magang, cek apakah sebelum jam 9 pagi WITA
+        statusKehadiran = localTime.getUTCHours() < 1 ? "HADIR" : "TERLAMBAT";
       } else {
-        statusKehadiran = "ONSITE"; // Default untuk WBS/AR/SA yang sehat
+        statusKehadiran = "ONSITE";
       }
     } else {
-      // Untuk status tidak sehat, gunakan nilai khusus berdasarkan entity type
       if (state.entityType === "MAGANG") {
-        statusKehadiran = "TERLAMBAT"; // Fallback value untuk MAGANG
+        statusKehadiran = "TERLAMBAT";
       } else {
-        statusKehadiran = "REMOTE"; // Fallback value untuk WBS/AR/SA
+        statusKehadiran = "REMOTE";
       }
     }
 
@@ -220,31 +228,6 @@ async function saveAttendanceData(bot, userStates, chatId, state) {
     console.log("✅ Attendance saved to database");
 
     await sendDataToSheets(state.entityType);
-
-    const rowDataForSendRekap =
-      state.entityType === "MAGANG"
-        ? [
-            `${day}/${month}/${year}`,
-            state.student.nama,
-            state.student.status || "-",
-            state.student.asal || "-",
-            state.student.unit,
-            statusKehadiran,
-          ]
-        : [
-            `${day}/${month}/${year}`,
-            state.student.nama,
-            state.student.posisi || "-",
-            state.student.unit,
-            statusKehadiran,
-            state.keterangan || "-",
-          ];
-
-    await googleSheetsService.saveToSendRekap(
-      getEntityByType(state.entityType).sendRekapSheet,
-      rowDataForSendRekap
-    );
-    console.log("✅ Data sent to SendRekap sheet");
 
     if (isSehat) {
       const caption = `📋 *LAPORAN ABSENSI* 📋
@@ -303,6 +286,7 @@ Status: ${statusKehadiran}
 
 module.exports = (bot, userStates) => {
   // Handler Absen
+  // Handler Absen
   bot.onText(/\/absen/, async (msg) => {
     const chatId = msg.chat.id;
     const username = msg.from.username;
@@ -324,6 +308,11 @@ module.exports = (bot, userStates) => {
         );
       }
 
+      // Dapatkan waktu dengan timezone Indonesia Tengah (WITA)
+      const now = new Date();
+      const offset = 8 * 60; // UTC+8 dalam menit
+      const localTime = new Date(now.getTime() + offset * 60 * 1000);
+
       // Cek apakah sudah absen hari ini
       const hasCheckedIn = await dbService.getTodayAttendanceByUsername(
         user.username,
@@ -336,14 +325,13 @@ module.exports = (bot, userStates) => {
         );
       }
 
-      const now = new Date();
       userStates[chatId] = {
         step: 1,
         student: { ...user, username },
         entityType: user.entity_type,
         healthStatus: null,
         keterangan: null,
-        status: now.getHours() < 9 ? "HADIR" : "TERLAMBAT",
+        status: localTime.getUTCHours() < 1 ? "HADIR" : "TERLAMBAT",
       };
 
       bot.sendMessage(chatId, "🩺 Pilih Status Kesehatan:", {

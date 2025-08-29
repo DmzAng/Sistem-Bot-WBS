@@ -1,5 +1,14 @@
 const pool = require("../../config/database");
 
+const now = new Date();
+const options = { timeZone: "Asia/Makassar" };
+const localDate = now.toLocaleDateString("en-CA", options);
+const localTime = now.toLocaleTimeString("en-GB", options);
+
+const [year, month, day] = localDate.split("-");
+const formattedDate = `${year}-${month}-${day}`;
+const formattedTime = localTime;
+
 module.exports = {
   // User operations
   getUserByUsername: async (username) => {
@@ -39,12 +48,14 @@ module.exports = {
 
     const { rows } = await pool.query(
       `INSERT INTO ${tableName} 
-       (user_name, nama, tanggal, waktu, status_kehadiran, status_kesehatan, foto, lokasi_lat, lokasi_lon, lokasi_alamat, keterangan)
-       VALUES ($1, $2, CURRENT_DATE, CURRENT_TIME, $3, $4, $5, $6, $7, $8, $9) 
-       RETURNING id`,
+   (user_name, nama, tanggal, waktu, status_kehadiran, status_kesehatan, foto, lokasi_lat, lokasi_lon, lokasi_alamat, keterangan)
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+   RETURNING id`,
       [
         user_name,
         nama,
+        formattedDate,
+        formattedTime,
         status_kehadiran,
         status_kesehatan,
         foto,
@@ -61,9 +72,9 @@ module.exports = {
     const tableName = `absen_${entityType.toLowerCase()}`;
     const { rows } = await pool.query(
       `SELECT 1 FROM ${tableName} 
-       WHERE user_name = $1 AND tanggal = CURRENT_DATE
-       LIMIT 1`,
-      [username]
+   WHERE user_name = $1 AND tanggal = $2
+   LIMIT 1`,
+      [username, formattedDate]
     );
     return rows.length > 0;
   },
@@ -105,7 +116,6 @@ module.exports = {
     );
     return rows.map((row) => row.kegiatan);
   },
-  
 
   getMonthlyAttendanceForEntity: async (entityType, year, month) => {
     const tableName = `absen_${entityType.toLowerCase()}`;
