@@ -49,6 +49,7 @@ module.exports = (bot, userStates) => {
         reply_markup: {
           keyboard: [[{ text: "📌 Bagikan Lokasi", request_location: true }]],
           one_time_keyboard: true,
+          remove_keyboard: true
         },
       });
     } catch (error) {
