@@ -108,7 +108,7 @@ function getRouteInstructions(steps) {
     const maneuverType =
       maneuverTranslations[step.maneuver.type] || step.maneuver.type;
 
-    // Terjemahkan modifier jika ada
+    // Terjemahkan modifi er jika ada
     const maneuverModifier =
       modifierTranslations[step.maneuver.modifier] || step.maneuver.modifier;
 
