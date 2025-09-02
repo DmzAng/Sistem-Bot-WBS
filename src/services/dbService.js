@@ -1,13 +1,20 @@
 const pool = require("../../config/database");
 
-const now = new Date();
-const options = { timeZone: "Asia/Makassar" };
-const localDate = now.toLocaleDateString("en-CA", options);
-const localTime = now.toLocaleTimeString("en-GB", options);
+function getCurrentWITADateTime() {
+  const now = new Date();
+  const options = { timeZone: "Asia/Makassar" };
+  const localDate = now.toLocaleDateString("en-CA", options);
+  const localTime = now.toLocaleTimeString("en-GB", options);
 
-const [year, month, day] = localDate.split("-");
-const formattedDate = `${year}-${month}-${day}`;
-const formattedTime = localTime;
+  const [year, month, day] = localDate.split("-");
+  return {
+    formattedDate: `${year}-${month}-${day}`,
+    formattedTime: localTime,
+    year,
+    month,
+    day,
+  };
+}
 
 module.exports = {
   // User operations
@@ -33,6 +40,8 @@ module.exports = {
 
   // Attendance operations
   saveAttendance: async (entityType, attendanceData) => {
+    const { formattedDate, formattedTime } = getCurrentWITADateTime();
+
     const tableName = `absen_${entityType.toLowerCase()}`;
     const {
       user_name,
@@ -69,6 +78,7 @@ module.exports = {
   },
 
   getTodayAttendanceByUsername: async (username, entityType) => {
+    const { formattedDate } = getCurrentWITADateTime();
     const tableName = `absen_${entityType.toLowerCase()}`;
     const { rows } = await pool.query(
       `SELECT 1 FROM ${tableName} 
