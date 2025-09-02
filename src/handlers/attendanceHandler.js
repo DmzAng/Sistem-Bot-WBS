@@ -229,26 +229,39 @@ async function saveAttendanceData(bot, userStates, chatId, state) {
 
     await sendDataToSheets(state.entityType);
 
-    if (isSehat) {
-      const caption = `📋 *LAPORAN ABSENSI* 📋
+    // Buat caption untuk semua status kesehatan
+    const caption = `📋 *LAPORAN ABSENSI* 📋
 Nama : ${state.student.nama}
 Posisi : ${state.student.posisi}
+Status : ${state.healthStatus}
 \`\`\`yaml
 Tanggal: ${day}/${month}/${year}
 Waktu: ${formattedTime}
 Lokasi: ${lokasiData?.full_address || "Tidak terdeteksi"}
 Status: ${statusKehadiran}
 \`\`\``;
-      console.log("📸 Sending attendance photo with caption");
 
+    console.log("📸 Sending attendance report to group");
+
+    // Kirim ke grup untuk semua status kesehatan
+    if (isSehat) {
+      // Untuk status sehat, kirim foto yang diambil
       await bot.sendPhoto(process.env.GROUP_CHAT_ID, state.photo.fileId, {
         caption: caption,
         parse_mode: "MarkdownV2",
         message_thread_id:
           process.env[`REKAP_${state.entityType.toUpperCase()}_TOPIC_ID`],
       });
+    } else {
+      // Untuk status tidak sehat, kirim pesan teks saja
+      await bot.sendMessage(process.env.GROUP_CHAT_ID, caption, {
+        parse_mode: "MarkdownV2",
+        message_thread_id:
+          process.env[`REKAP_${state.entityType.toUpperCase()}_TOPIC_ID`],
+      });
     }
 
+    // Kirim konfirmasi ke user
     if (isSehat) {
       bot.sendMessage(
         chatId,
@@ -285,7 +298,6 @@ Status: ${statusKehadiran}
 }
 
 module.exports = (bot, userStates) => {
-  // Handler Absen
   // Handler Absen
   bot.onText(/\/absen/, async (msg) => {
     const chatId = msg.chat.id;
@@ -390,6 +402,37 @@ module.exports = (bot, userStates) => {
           delete userStates[chatId];
         }
         break;
+    }
+  });
+
+  // Handle Foto untuk absen sehat
+  bot.on("photo", async (msg) => {
+    const chatId = msg.chat.id;
+    const state = userStates[chatId];
+
+    if (!state || state.registration || state.healthStatus !== "Sehat") return;
+
+    try {
+      // Dapatkan file_id dari foto yang dikirim
+      const photo = msg.photo[msg.photo.length - 1];
+      state.photo = {
+        fileId: photo.file_id,
+        fileUrl: await bot.getFileLink(photo.file_id),
+      };
+
+      // Dapatkan lokasi jika ada
+      if (msg.location) {
+        state.location = {
+          lat: msg.location.latitude,
+          lon: msg.location.longitude,
+        };
+      }
+
+      // Simpan data absensi
+      await saveAttendanceData(bot, userStates, chatId, state);
+    } catch (error) {
+      console.error("Error processing photo:", error);
+      bot.sendMessage(chatId, "❌ Gagal memproses foto. Silakan coba lagi.");
     }
   });
 };
