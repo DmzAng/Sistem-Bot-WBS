@@ -1,5 +1,6 @@
 .env
 credentials.json
 tes
+visitHandler.html
 *.log
 build/
