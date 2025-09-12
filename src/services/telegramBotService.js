@@ -40,7 +40,7 @@ const ENTITIES = {
     columns: ["username", "nama", "posisi", "unit"],
   },
 };
- 
+
 module.exports = {
   getEntityByType(type) {
     if (!type || typeof type !== "string") {
@@ -67,6 +67,17 @@ module.exports = {
       },
       onlyFirstMatch: true,
     });
+
+    bot.on("error", (error) => {
+      console.error("Bot error:", error);
+      if (error.code === "EFATAL") {
+        setTimeout(() => bot.startPolling(), 5000);
+      }
+    });
+
+    ensureDirectories();
+    return bot;
+  },
 
   createKeyboard: (entityType) => {
     const entity = ENTITIES[entityType.toUpperCase()];
