@@ -4,12 +4,18 @@ const {
   calculateDistance,
   getDrivingRoute,
   getRouteInstructions,
+  getBestRoute,
+  hasOneWayViolation,
 } = require("../services/routeOptimizer");
 
 const escapeMarkdown = (text) => {
+  if (typeof text !== "string") {
+    console.error("escapeMarkdown received non-string:", text);
+    return String(text);
+  }
   return text.replace(/([\_*\[\]\(\)~\`>\#\+\-=\|{}\.!])/g, "\\$1");
 };
-
+ 
 const isWithinRadius = (lat1, lon1, lat2, lon2, radiusMeters = 50) => {
   const distance = calculateDistance(
     { lat: lat1, lon: lon1 },
@@ -90,9 +96,9 @@ module.exports = (bot, stateManager) => {
     const chatId = msg.chat.id;
     const data = callbackQuery.data;
 
-    // Perbaikan: Dapatkan state terlebih dahulu
     const state = stateManager.getState(chatId);
 
+    // Perbaikan: Handle error saat menghapus keyboard
     if (state && state.planSelectionMessageId) {
       try {
         await bot.editMessageReplyMarkup(
@@ -103,7 +109,11 @@ module.exports = (bot, stateManager) => {
           }
         );
       } catch (error) {
-        console.error("Error menghapus keyboard:", error);
+        if (
+          !error.response.body.description.includes("message is not modified")
+        ) {
+          console.error("Error menghapus keyboard:", error);
+        }
       }
     }
 
@@ -185,6 +195,7 @@ module.exports = (bot, stateManager) => {
       }
     }
     // Handler untuk memilih lokasi awal kunjungan
+    // Handler untuk memilih lokasi awal kunjungan
     else if (data.startsWith("start_visit_")) {
       const parts = data.split("_");
       const planId = parts[2];
@@ -221,7 +232,6 @@ module.exports = (bot, stateManager) => {
 
         if (startIndex > 0) {
           const selectedLocation = remainingVisits[startIndex];
-
           remainingVisits.splice(startIndex, 1);
 
           const locationsForOptimization = [
@@ -244,14 +254,16 @@ module.exports = (bot, stateManager) => {
           // Kirim pesan sedang memproses
           const processingMsg = await bot.sendMessage(
             chatId,
-            "🔄 Menghitung rute optimal berdasarkan jalan..."
+            "🔄 Menghitung rute optimal yang menghindari jalan satu arah..."
           );
 
           let optimizedRemaining;
           try {
+            // Gunakan opsi untuk menghindari jalan one-way
             optimizedRemaining = await optimizeRouteWithBruteForce(
               locationsForOptimization,
-              true
+              true,
+              { avoidOneWay: true } // Tambahkan opsi ini
             );
           } catch (error) {
             console.error("Error dalam optimasi rute jalan:", error);
@@ -291,7 +303,7 @@ module.exports = (bot, stateManager) => {
             ),
           })),
           currentVisitIndex: 0,
-          currentLocation: plan.user_location, // Gunakan titik awal dari rencana
+          currentLocation: plan.user_location,
         });
 
         bot.answerCallbackQuery(callbackQuery.id, {
@@ -314,38 +326,49 @@ module.exports = (bot, stateManager) => {
           "🔄 Menganalisis rute terbaik..."
         );
 
-        // Dapatkan rute jalan
-        const routeInfo = await getDrivingRoute(userLocation, targetLocation);
+        try {
+          const routeInfo = await getBestRoute(userLocation, targetLocation, {
+            avoidTolls: false,
+            avoidHighways: false,
+            preferShortest: false,
+          });
 
-        // Hapus pesan processing
-        await bot.deleteMessage(chatId, processingMsg.message_id);
+          // Dapatkan petunjuk rute dengan await yang benar
+          const routeInstructions = await getRouteInstructions(routeInfo.steps);
 
-        // Dapatkan petunjuk rute
-        const routeInstructions = getRouteInstructions(routeInfo.steps);
+          await bot.deleteMessage(chatId, processingMsg.message_id);
 
-        // Format pesan dengan rekomendasi rute
-        const distanceKm = (routeInfo.distance / 1000).toFixed(1);
-        const durationMin = Math.ceil(routeInfo.duration / 60);
+          // Format pesan dengan rekomendasi rute
+          const distanceKm = (routeInfo.distance / 1000).toFixed(1);
+          const durationMin = Math.ceil(routeInfo.duration / 60);
 
-        let message = escapeMarkdown("🚀 MEMULAI KUNJUNGAN") + "\n";
-        message +=
-          escapeMarkdown("Rencana:") + ` ${escapeMarkdown(`#${plan.id}`)}\n`;
-        message +=
-          escapeMarkdown("Lokasi:") +
-          ` *${escapeMarkdown(currentVisit.name)}*\n\n`;
-        message += escapeMarkdown("📊 INFO RUTE:") + "\n";
-        message +=
-          escapeMarkdown("Jarak:") + ` ${escapeMarkdown(distanceKm)} km\n`;
-        message +=
-          escapeMarkdown("Perkiraan Waktu:") +
-          ` ${escapeMarkdown(String(durationMin))} menit\n\n`;
-        message += escapeMarkdown("📍 PETUNJUK RUTE:") + "\n";
-        message += escapeMarkdown(routeInstructions) + "\n";
-        message += escapeMarkdown(
-          "Silakan menuju ke lokasi tersebut. Setelah sampai, kirim lokasi dan foto sebagai bukti."
-        );
+          let message = escapeMarkdown("🚀 MEMULAI KUNJUNGAN") + "\n";
+          message +=
+            escapeMarkdown("Rencana:") + ` ${escapeMarkdown(`#${plan.id}`)}\n`;
+          message +=
+            escapeMarkdown("Lokasi:") +
+            ` *${escapeMarkdown(currentVisit.name)}*\n\n`;
+          message += escapeMarkdown("📊 INFO RUTE:") + "\n";
+          message +=
+            escapeMarkdown("Jarak:") + ` ${escapeMarkdown(distanceKm)} km\n`;
+          message +=
+            escapeMarkdown("Perkiraan Waktu:") +
+            ` ${escapeMarkdown(String(durationMin))} menit\n\n`;
+          message += escapeMarkdown("📍 PETUNJUK RUTE:") + "\n";
+          message += escapeMarkdown(routeInstructions) + "\n";
+          message += escapeMarkdown(
+            "Silakan menuju ke lokasi tersebut. Setelah sampai, kirim lokasi dan foto sebagai bukti."
+          );
 
-        bot.sendMessage(chatId, message, { parse_mode: "MarkdownV2" });
+          await bot.sendMessage(chatId, message, { parse_mode: "MarkdownV2" });
+        } catch (error) {
+          console.error("Error mendapatkan rute:", error);
+          await bot.deleteMessage(chatId, processingMsg.message_id);
+          await bot.sendMessage(
+            chatId,
+            "❌ Gagal mendapatkan rute. Silakan coba lagi."
+          );
+        }
       } catch (error) {
         console.error("Error saat memilih lokasi awal:", error);
         bot.answerCallbackQuery(callbackQuery.id, {
@@ -433,11 +456,19 @@ Silakan menuju ke lokasi yang benar.`
 
         const nextVisit = state.remainingVisits[nextIndex];
 
-        // Hitung rute dari lokasi saat ini ke lokasi berikutnya
-        const routeInfo = await getDrivingRoute(state.currentLocation, {
-          lat: nextVisit.lat,
-          lon: nextVisit.lon,
-        });
+        const routeInfo = await getBestRoute(
+          state.currentLocation,
+          {
+            lat: nextVisit.lat,
+            lon: nextVisit.lon,
+          },
+          {
+            avoidTolls: false,
+            avoidHighways: false,
+            avoidOneWay: true,
+            preferShortest: false,
+          }
+        );
 
         const routeInstructions = getRouteInstructions(routeInfo.steps);
         const distanceKm = (routeInfo.distance / 1000).toFixed(1);

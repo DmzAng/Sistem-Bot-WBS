@@ -13,6 +13,8 @@ const persentaseHandler = require("./src/handlers/persentaseHandler");
 const visitPlanHandler = require("./src/handlers/visitPlanHandler");
 const visitExecutionHandler = require("./src/handlers/visitExecutionHandler");
 const pool = require("./config/database");
+const express = require('express');
+const app = express();
 
 async function testDbConnection() {
   try {
@@ -22,9 +24,19 @@ async function testDbConnection() {
     console.error("❌ Database connection failed", error);
     process.exit(1);
   }
-}
+} 
 
 testDbConnection();
+
+const port = process.env.PORT || 3000;
+
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
+app.listen(port, () => {
+  console.log(`Health check server running on port ${port}`);
+});
 
 const bot = createBot();
 const stateManager = require("./stateManager");
