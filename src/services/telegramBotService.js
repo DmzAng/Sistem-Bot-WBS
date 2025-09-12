@@ -40,7 +40,7 @@ const ENTITIES = {
     columns: ["username", "nama", "posisi", "unit"],
   },
 };
-
+ 
 module.exports = {
   getEntityByType(type) {
     if (!type || typeof type !== "string") {

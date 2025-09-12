@@ -66,7 +66,7 @@ async function getDrivingDistance(point1, point2, options = {}) {
     );
   }
 }
-
+ 
 // routeOptimizer.js - Tambahkan fungsi ini
 function detectOneWayRoad(step) {
   // Deteksi berdasarkan nama jalan yang mengandung indikator satu arah

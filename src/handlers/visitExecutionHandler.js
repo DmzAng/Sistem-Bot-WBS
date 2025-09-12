@@ -15,7 +15,7 @@ const escapeMarkdown = (text) => {
   }
   return text.replace(/([\_*\[\]\(\)~\`>\#\+\-=\|{}\.!])/g, "\\$1");
 };
-
+ 
 const isWithinRadius = (lat1, lon1, lat2, lon2, radiusMeters = 50) => {
   const distance = calculateDistance(
     { lat: lat1, lon: lon1 },
