@@ -9,7 +9,7 @@ class StateManager {
           this.states.delete(chatId);
         }
       }
-    }, 60000); // Setiap 1 menit
+    }, 60000);
   }
 
   getState(chatId) {

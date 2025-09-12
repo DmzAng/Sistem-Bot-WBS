@@ -403,39 +403,8 @@ module.exports = (bot, userStates) => {
         }
         break;
     }
-  });};
-
-//   // Handle Foto untuk absen sehat
-//   bot.on("photo", async (msg) => {
-//     const chatId = msg.chat.id;
-//     const state = userStates[chatId];
-
-//     if (!state || state.registration || state.healthStatus !== "Sehat") return;
-
-//     try {
-//       // Dapatkan file_id dari foto yang dikirim
-//       const photo = msg.photo[msg.photo.length - 1];
-//       state.photo = {
-//         fileId: photo.file_id,
-//         fileUrl: await bot.getFileLink(photo.file_id),
-//       };
-
-//       // Dapatkan lokasi jika ada
-//       if (msg.location) {
-//         state.location = {
-//           lat: msg.location.latitude,
-//           lon: msg.location.longitude,
-//         };
-//       }
-
-//       // Simpan data absensi
-//       await saveAttendanceData(bot, userStates, chatId, state);
-//     } catch (error) {
-//       console.error("Error processing photo:", error);
-//       bot.sendMessage(chatId, "❌ Gagal memproses foto. Silakan coba lagi.");
-//     }
-//   });
-// };
+  });
+};
 
 module.exports.saveAttendanceData = saveAttendanceData;
 module.exports.getLocationName = getLocationName;
