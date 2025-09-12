@@ -1,0 +1,11 @@
+  INSERT INTO absen_wbs
+  (user_name, nama, tanggal, waktu, status_kehadiran, status_kesehatan, foto,
+   lokasi_lat, lokasi_lon, lokasi_alamat, keterangan)
+VALUES
+   donesia', NULL),
+  ('Pricillya', 'Pricillya Aliwu', '2025-09-03', '08:02:00', 'ONSITE', 'Sehat',
+     NULL, NULL, NULL, 'Gorontalo, Gorontalo, 94112, Indonesia', NULL),
+  ('gita_febriani', 'Gita febriani malik Aliwu', '2025-09-03', '08:36:00', 'ONSITE', 'Sehat',
+     NULL, NULL, NULL, 'Gorontalo, Gorontalo, 94112, Indonesia', NULL),
+  ('nitaawulandari', 'Nita Wulandari', '2025-09-03', '09:25:00', 'ONSITE', 'Sehat',
+     NULL, NULL, NULL, 'Jalan Mohammad Hatta, Palu, Sulawesi Tengah, 94112, Indonesia', NULL);

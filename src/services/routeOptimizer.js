@@ -112,6 +112,51 @@ function isOneWayStep(step) {
   return detectOneWayRoad(step);
 }
 
+// routeOptimizer.js - Tambahkan fungsi ini
+function detectOneWayRoad(step) {
+  // Deteksi berdasarkan nama jalan yang mengandung indikator satu arah
+  const oneWayIndicators = [
+    "satu arah",
+    "one way",
+    "one-way",
+    "searah",
+    "arah tunggal",
+  ];
+
+  const roadName = step.name?.toLowerCase() || "";
+
+  // Cek indikator dalam nama jalan
+  const hasOneWayInName = oneWayIndicators.some((indicator) =>
+    roadName.includes(indicator)
+  );
+
+  // Deteksi berdasarkan tipe maneuver yang biasanya terkait jalan satu arah
+  const oneWayManeuvers = [
+    "turn",
+    "sharp turn",
+    "merge",
+    "on ramp",
+    "off ramp",
+    "roundabout",
+    "rotary",
+  ];
+
+  const isOneWayManeuver = oneWayManeuvers.includes(step.maneuver.type);
+
+  // Deteksi berdasarkan modifier yang menunjukkan pembatasan arah
+  const restrictiveModifiers = ["uturn", "sharp left", "sharp right"];
+
+  const hasRestrictiveModifier = restrictiveModifiers.includes(
+    step.maneuver.modifier
+  );
+
+  return hasOneWayInName || isOneWayManeuver || hasRestrictiveModifier;
+}
+
+function isOneWayStep(step) {
+  return detectOneWayRoad(step);
+}
+
 // Fungsi untuk mendapatkan rute jalan dari OSRM
 async function getDrivingRoute(point1, point2, options = {}) {
   try {
