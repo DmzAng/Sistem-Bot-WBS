@@ -26,7 +26,7 @@ const ENTITIES = {
   AR: {
     healthOptions: ["Sehat", "Izin", "Sakit"],
     rekapSheet: "RekapAR",
-    sendRekapSheet: "SendRekapAR",
+    sendRekapSheet: "SendRekapAR", 
     topicId: process.env.REKAP_AR_TOPIC_ID,
     registrationSheet: "RegistrasiAR",
     columns: ["username", "nama", "posisi", "unit"],
@@ -40,7 +40,7 @@ const ENTITIES = {
     columns: ["username", "nama", "posisi", "unit"],
   },
 };
- 
+
 module.exports = {
   getEntityByType(type) {
     if (!type || typeof type !== "string") {
@@ -50,16 +50,32 @@ module.exports = {
   },
 
   createBot: () => {
-    const bot = new TelegramBot(process.env.TOKEN);
+    const bot = new TelegramBot(process.env.TOKEN, {
+      polling: {
+        interval: 3000,
+        param: 10000,
+        autoStart: true,
+        params: {
+          timeout: 10,
+        },
+      },
+      request: {
+        agentOptions: {
+          keepAlive: true,
+          maxSockets: 50,
+        },
+      },
+      onlyFirstMatch: true,
+    });
 
-    // Hanya set webhook jika di production
-    if (process.env.NODE_ENV === "production") {
-      const webhookUrl = `${process.env.RAILWAY_STATIC_URL}/bot${process.env.TOKEN}`;
-      bot.setWebHook(webhookUrl);
-    } else {
-      bot.startPolling();
-    }
+    bot.on("error", (error) => {
+      console.error("Bot error:", error);
+      if (error.code === "EFATAL") {
+        setTimeout(() => bot.startPolling(), 5000);
+      }
+    });
 
+    ensureDirectories();
     return bot;
   },
 
