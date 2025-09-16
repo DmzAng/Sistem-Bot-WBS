@@ -470,7 +470,7 @@ Silakan menuju ke lokasi yang benar.`
           }
         );
 
-        const routeInstructions = getRouteInstructions(routeInfo.steps);
+        const routeInstructions = await getRouteInstructions(routeInfo.steps);
         const distanceKm = (routeInfo.distance / 1000).toFixed(1);
         const durationMin = Math.ceil(routeInfo.duration / 60);
 
