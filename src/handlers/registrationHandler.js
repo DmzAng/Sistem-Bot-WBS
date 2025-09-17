@@ -15,8 +15,9 @@ Sebelum melakukan absen, silakan daftar terlebih dahulu sesuai kebutuhan Anda:
 2️⃣ *Daftar WBS* – untuk karyawan atau staff WBS
    👉 Gunakan perintah: /daftarwbs
 
-📝 *Todo List* – simpan daftar tugas Anda dengan mudah
-   👉 Gunakan perintah: /todo
+📝 *Visiting Planing* – Rencanakan visiting ke klien
+   👉 Membuat Rencana: /buatvisiting 
+   👉 Menjalankan Rencana: /pilihvisiting 
 
 _📌 Pastikan Anda sudah memiliki username Telegram sebelum mendaftar._
     `;
