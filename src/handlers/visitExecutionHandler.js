@@ -26,7 +26,7 @@ const isWithinRadius = (lat1, lon1, lat2, lon2, radiusMeters = 50) => {
 
 module.exports = (bot, stateManager) => {
   // Command untuk memilih kunjungan
-  bot.onText(/\/pilihkunjungan/, async (msg) => {
+  bot.onText(/\/pilihvisiting/, async (msg) => {
     const chatId = msg.chat.id;
     const now = new Date();
     const day = String(now.getDate()).padStart(2, "0");

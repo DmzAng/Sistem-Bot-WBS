@@ -10,7 +10,7 @@ const escapeMarkdown = (text) => {
 
 module.exports = (bot, stateManager) => {
   // Command untuk memulai pembuatan rencana
-  bot.onText(/\/buatrencana/, (msg) => {
+  bot.onText(/\/buatvisiting/, (msg) => {
     const chatId = msg.chat.id;
     stateManager.setState(chatId, {
       creatingPlan: true,
