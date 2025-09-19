@@ -6,6 +6,19 @@ const dbService = require("../services/dbService");
 const googleSheetsService = require("../services/googleSheetsService");
 
 async function generateAndSendRekap(bot, entityType) {
+  function escapeMarkdownV2(text) {
+    const escapeChars = "_*[]()~`>#+-=|{}.!";
+    let escapedText = "";
+    for (const char of text) {
+      if (escapeChars.includes(char)) {
+        escapedText += "\\" + char;
+      } else {
+        escapedText += char;
+      }
+    }
+    return escapedText;
+  }
+
   console.log(`🔄 generateAndSendRekap started for entityType=${entityType}`);
   try {
     const url = `${process.env.APPSCRIPT_URL}?sheet=${entityType}`;
@@ -34,14 +47,33 @@ async function generateAndSendRekap(bot, entityType) {
     console.log(`🖼️ Converted to images: ${imagePaths.join(", ")}`);
 
     const topicId = getEntityByType(entityType).topicId;
-    console.log(
-      `📌 Sending images to GROUP_CHAT_ID=${process.env.GROUP_CHAT_ID}, thread=${topicId}`
-    );
-    for (const imgPath of imagePaths) {
-      await bot.sendPhoto(process.env.GROUP_CHAT_ID, imgPath, {
+    const now = new Date();
+    const offset = 8 * 60; // UTC+8 dalam menit (WITA)
+    const localTime = new Date(now.getTime() + offset * 60 * 1000);
+
+    const day = String(localTime.getUTCDate()).padStart(2, "0");
+    const month = String(localTime.getUTCMonth() + 1).padStart(2, "0");
+    const year = localTime.getUTCFullYear();
+    const hours = String(localTime.getUTCHours()).padStart(2, "0");
+    const minutes = String(localTime.getUTCMinutes()).padStart(2, "0");
+
+    const caption = `📊 Rekap Absen ${entityType} - ${day}/${month}/${year} ${hours}:${minutes} WITA`;
+    const escapedCaption = escapeMarkdownV2(caption);
+
+    console.log(`📌 Sending images with caption: ${caption}`);
+    await bot.sendPhoto(process.env.GROUP_CHAT_ID, imagePaths[0], {
+      caption: escapedCaption,
+      message_thread_id: topicId,
+      parse_mode: "MarkdownV2",
+    });
+    console.log(`✅ Sent first image with caption`);
+
+    // Kirim gambar sisanya tanpa caption
+    for (let i = 1; i < imagePaths.length; i++) {
+      await bot.sendPhoto(process.env.GROUP_CHAT_ID, imagePaths[i], {
         message_thread_id: topicId,
       });
-      console.log(`✅ Sent image ${imgPath}`);
+      console.log(`✅ Sent image ${i + 1}`);
     }
 
     fs.unlinkSync(pdfPath);
