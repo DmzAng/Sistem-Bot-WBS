@@ -2,21 +2,28 @@ const pool = require("../../config/database");
 
 function getCurrentWITADateTime() {
   const now = new Date();
-  const options = { timeZone: "Asia/Makassar" };
-  const localDate = now.toLocaleDateString("en-CA", options);
-  const localTime = now.toLocaleTimeString("en-GB", options);
 
-  const [year, month, day] = localDate.split("-");
+  const witaOffset = 8 * 60 * 60 * 1000;
+  const witaTime = new Date(now.getTime() + witaOffset);
+
+  const year = witaTime.getUTCFullYear();
+  const month = String(witaTime.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(witaTime.getUTCDate()).padStart(2, "0");
+  const hours = String(witaTime.getUTCHours()).padStart(2, "0");
+  const minutes = String(witaTime.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(witaTime.getUTCSeconds()).padStart(2, "0");
+
   return {
     formattedDate: `${year}-${month}-${day}`,
-    formattedTime: localTime,
-    year,
-    month,
-    day,
+    formattedTime: `${hours}:${minutes}:${seconds}`,
+    year: parseInt(year),
+    month: parseInt(month),
+    day: parseInt(day),
   };
 }
 
 module.exports = {
+  getCurrentWITADateTime,
   // User operations
   getUserByUsername: async (username) => {
     const { rows } = await pool.query(
@@ -152,7 +159,7 @@ module.exports = {
     const tableName = `absen_${entityType.toLowerCase()}`;
 
     const { rows } = await pool.query(
-      `SELECT a.user_name, a.nama, a.status_kehadiran, a.keterangan,
+      `SELECT a.user_name, a.nama, a.status_kehadiran, a.keterangan, a.waktu,
             u.posisi, u.status, u.asal, u.unit
      FROM ${tableName} a
      JOIN users u ON a.user_name = u.username

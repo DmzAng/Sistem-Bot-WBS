@@ -12,44 +12,46 @@ function calculateWorkingDays(year, month) {
 }
 
 function getAttendanceWeight(status, entityType) {
-  // Handle perbedaan status antara MAGANG dan WBS
-  const statusUpper = status.toUpperCase();
+  if (!status) return 0;
+  const statusUpper = status.toString().trim().toUpperCase();
+
+  const MAGANG_MAP = {
+    HADIR: 1.0,
+    PRESENT: 1.0,
+    P: 1.0,
+    ONTIME: 1.0,
+    TERLAMBAT: 0.7,
+    LATE: 0.7,
+    IZIN: 0.3,
+    PERMISSION: 0.3,
+    SAKIT: 0.5,
+    SICK: 0.5,
+  };
+
+  const WBS_MAP = {
+    ONSITE: 1.0,
+    ONS: 1.0,
+    REMOTE: 0.7,
+    WORKFROMHOME: 0.7,
+    WFH: 0.7,
+    IZIN: 0.3,
+    PERMISSION: 0.3,
+    SAKIT: 0.5,
+    SICK: 0.5,
+  };
 
   if (entityType === "WBS") {
-    switch (statusUpper) {
-      case "ONSITE":
-        return 1.0;
-      case "REMOTE":
-        return 0.7;
-      case "IZIN":
-        return 0.3;
-      case "SAKIT":
-        return 0.5;
-      default:
-        return 0;
-    }
+    return WBS_MAP[statusUpper] ?? 0;
   } else {
-    // Untuk MAGANG dan entity lainnya
-    switch (statusUpper) {
-      case "HADIR":
-        return 1.0;
-      case "TERLAMBAT":
-        return 0.7;
-      case "IZIN":
-        return 0.3;
-      case "SAKIT":
-        return 0.5;
-      default:
-        return 0;
-    }
+    return MAGANG_MAP[statusUpper] ?? 0;
   }
 }
 
 function evaluateThreshold(percentage) {
-  if (percentage >= 95) return "BAIK SEKALI 🏆";
-  if (percentage >= 80) return "BAIK 👍";
-  if (percentage >= 70) return "CUKUP ⚠️";
-  return "BURUK ❌";
+  if (percentage >= 95) return "BAIK SEKALI";
+  if (percentage >= 80) return "BAIK";
+  if (percentage >= 70) return "CUKUP";
+  return "BURUK";
 }
 
 function calculateAttendancePercentage(
@@ -60,9 +62,17 @@ function calculateAttendancePercentage(
 ) {
   const workingDays = calculateWorkingDays(year, month);
   let totalScore = 0;
+  let izinDays = 0;
+  let sakitDays = 0;
 
-  // Hitung skor berbobot
+  // Hitung skor berbobot dan hitung izin/sakit
   records.forEach((record) => {
+    const status = record.status_kehadiran.toUpperCase();
+    if (status === "IZIN") {
+      izinDays++;
+    } else if (status === "SAKIT") {
+      sakitDays++;
+    }
     totalScore += getAttendanceWeight(record.status_kehadiran, entityType);
   });
 
@@ -72,6 +82,8 @@ function calculateAttendancePercentage(
     evaluation: evaluateThreshold(percentage),
     workingDays,
     presentDays: records.length,
+    izinDays,
+    sakitDays,
     absentDays: workingDays - records.length,
   };
 }

@@ -75,6 +75,7 @@ module.exports = (bot) => {
         now.getMonth()
       );
 
+      // Di dalam loop for (const user of allUsers)
       for (const user of allUsers) {
         const usernameClean = user.username.toLowerCase();
         const userRecords = userMap[usernameClean] || [];
@@ -86,21 +87,39 @@ module.exports = (bot) => {
             nama: user.nama,
             posisi: entityType === "WBS" ? `${user.posisi}` : `${user.status}`,
             presentDays: 0,
+            izinDays: 0,
+            sakitDays: 0, 
             absentDays: workingDays,
             percentage: 0,
-            evaluation: "Poor ❌",
+            evaluation: "BURUK",
           });
         } else {
+          // Hitung jumlah izin dan sakit
+          let izinDays = 0;
+          let sakitDays = 0;
+
+          userRecords.forEach((record) => {
+            const status = record.status_kehadiran.toUpperCase();
+            if (status === "IZIN") {
+              izinDays++;
+            } else if (status === "SAKIT") {
+              sakitDays++;
+            }
+          });
+
           const result = calculateAttendancePercentage(
             userRecords,
             now.getFullYear(),
-            now.getMonth()
+            now.getMonth(),
+            entityType
           );
 
           reportData.push({
             nama: user.nama,
             posisi: entityType === "WBS" ? `${user.posisi}` : `${user.status}`,
             presentDays: result.presentDays,
+            izinDays: izinDays, // Tambahkan
+            sakitDays: sakitDays, // Tambahkan
             absentDays: result.absentDays,
             percentage: result.percentage,
             evaluation: result.evaluation,

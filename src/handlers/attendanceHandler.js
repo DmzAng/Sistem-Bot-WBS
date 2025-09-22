@@ -139,16 +139,10 @@ async function sendDataToSheets(entityType) {
       throw new Error("Tidak ada data absen hari ini di database");
     }
 
-    // Format data untuk dikirim ke Google Sheets
     const rowData = records.map((record) => {
-      const tanggal = `${String(day).padStart(2, "0")}/${String(month).padStart(
-        2,
-        "0"
-      )}/${year}`;
-
       if (entityType === "MAGANG") {
         return [
-          tanggal,
+          record.waktu,
           record.nama,
           record.status || "-",
           record.asal || "-",
@@ -158,7 +152,7 @@ async function sendDataToSheets(entityType) {
       } else {
         // WBS
         return [
-          tanggal,
+          record.waktu,
           record.nama,
           record.posisi || "-",
           record.unit,
@@ -168,7 +162,7 @@ async function sendDataToSheets(entityType) {
       }
     });
 
-    // Kirim ke Google Sheets
+    // Kirim ke Google Sheets - data akan dimulai dari baris 3
     await googleSheetsService.bulkSaveToSendRekap(
       entityType === "MAGANG" ? "SendRekapMagang" : "SendRekapWBS",
       rowData
@@ -200,24 +194,24 @@ async function saveAttendanceData(bot, userStates, chatId, state) {
       : { full_address: "Tidak diperlukan" };
     console.log(`📍 Lokasi data resolved:`, lokasiData);
 
-    // Dapatkan waktu dengan timezone Indonesia Tengah (WITA)
+    // Dapatkan waktu WITA yang benar
     const now = new Date();
-    const offset = 8 * 60;
-    const localTime = new Date(now.getTime() + offset * 60 * 1000);
-
-    const day = String(localTime.getUTCDate()).padStart(2, "0");
-    const month = String(localTime.getUTCMonth() + 1).padStart(2, "0");
-    const year = localTime.getUTCFullYear();
+    const witaOffset = 8 * 60 * 60 * 1000;
+    const witaTime = new Date(now.getTime() + witaOffset);
+    
+    const day = String(witaTime.getUTCDate()).padStart(2, "0");
+    const month = String(witaTime.getUTCMonth() + 1).padStart(2, "0");
+    const year = witaTime.getUTCFullYear();
     const formattedDate = `${year}-${month}-${day}`;
     const formattedTime = [
-      localTime.getUTCHours(),
-      localTime.getUTCMinutes(),
-      localTime.getUTCSeconds(),
+      witaTime.getUTCHours(),
+      witaTime.getUTCMinutes(),
+      witaTime.getUTCSeconds(),
     ]
       .map((n) => String(n).padStart(2, "0"))
       .join(":");
 
-    console.log(`⏰ Date=${formattedDate}, Time=${formattedTime}`);
+    console.log(`⏰ WITA Date=${formattedDate}, Time=${formattedTime}`);
 
     // Dapatkan user dari database
     const user = await dbService.getUserByUsername(state.student.username);
@@ -229,7 +223,7 @@ async function saveAttendanceData(bot, userStates, chatId, state) {
     if (isSehat) {
       if (state.entityType === "MAGANG") {
         // Untuk Magang, cek apakah sebelum jam 9 pagi WITA
-        statusKehadiran = localTime.getUTCHours() < 1 ? "HADIR" : "TERLAMBAT";
+        statusKehadiran = witaTime.getUTCHours() < 9 ? "HADIR" : "TERLAMBAT";
       } else {
         statusKehadiran = "ONSITE";
       }
@@ -261,14 +255,14 @@ async function saveAttendanceData(bot, userStates, chatId, state) {
 
     await sendDataToSheets(state.entityType);
 
-    // Buat caption untuk semua status kesehatan
+    // Buat caption dengan waktu WITA
     const caption = `📋 *LAPORAN ABSENSI* 📋
 Nama : ${state.student.nama}
 Posisi : ${state.student.posisi}
 Status : ${state.healthStatus}
 \`\`\`yaml
 Tanggal: ${day}/${month}/${year}
-Waktu: ${formattedTime}
+Waktu: ${formattedTime} WITA
 Lokasi: ${lokasiData?.full_address || "Tidak terdeteksi"}
 Status: ${statusKehadiran}
 \`\`\``;
@@ -277,7 +271,6 @@ Status: ${statusKehadiran}
 
     // Kirim ke grup untuk semua status kesehatan
     if (isSehat) {
-      // Untuk status sehat, kirim foto yang diambil
       await bot.sendPhoto(process.env.GROUP_CHAT_ID, state.photo.fileId, {
         caption: caption,
         parse_mode: "MarkdownV2",
@@ -285,7 +278,6 @@ Status: ${statusKehadiran}
           process.env[`REKAP_${state.entityType.toUpperCase()}_TOPIC_ID`],
       });
     } else {
-      // Untuk status tidak sehat, kirim pesan teks saja
       await bot.sendMessage(process.env.GROUP_CHAT_ID, caption, {
         parse_mode: "MarkdownV2",
         message_thread_id:
@@ -297,7 +289,7 @@ Status: ${statusKehadiran}
     if (isSehat) {
       bot.sendMessage(
         chatId,
-        `✅ Absensi berhasil!\nStatus: ${statusKehadiran}\nLokasi: ${
+        `✅ Absensi berhasil!\nStatus: ${statusKehadiran}\nWaktu: ${formattedTime} WITA\nLokasi: ${
           lokasiData?.full_address || "Tidak terdeteksi"
         }`,
         {
@@ -307,7 +299,7 @@ Status: ${statusKehadiran}
     } else {
       bot.sendMessage(
         chatId,
-        `✅ Izin/sakit berhasil dicatat: ${state.keterangan}`,
+        `✅ Izin/sakit berhasil dicatat: ${state.keterangan}\nWaktu: ${formattedTime} WITA`,
         {
           reply_markup: { remove_keyboard: true },
         }
