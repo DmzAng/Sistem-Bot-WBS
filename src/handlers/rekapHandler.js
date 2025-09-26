@@ -87,14 +87,11 @@ async function sendDataToSheets(entityType) {
 
     // Format data untuk dikirim ke Google Sheets
     const rowData = records.map((record) => {
-      const tanggal = `${String(day).padStart(2, "0")}/${String(month).padStart(
-        2,
-        "0"
-      )}/${year}`;
+
 
       if (entityType === "MAGANG") {
         return [
-          tanggal,
+          record.waktu,
           record.nama,
           record.status || "-",
           record.asal || "-",
@@ -104,7 +101,7 @@ async function sendDataToSheets(entityType) {
       } else {
         // WBS
         return [
-          tanggal,
+          record.waktu,
           record.nama,
           record.posisi || "-",
           record.unit,

@@ -49,6 +49,41 @@ module.exports = (bot) => {
         "🔄 Sedang membuat laporan..."
       );
 
+      // Gunakan fungsi yang sama dengan scheduled report
+      await generateAndSendPercentageReport(
+        bot,
+        entityType,
+        true,
+        chatId,
+        loadingMessage
+      );
+    } catch (error) {
+      console.error("Error:", error);
+
+      // Hapus pesan loading jika ada error
+      if (loadingMessage) {
+        await bot
+          .deleteMessage(chatId, loadingMessage.message_id)
+          .catch(console.error);
+      }
+
+      bot.sendMessage(
+        chatId,
+        `❌ Gagal menghasilkan laporan: ${error.message}`
+      );
+    }
+  });
+
+  // Fungsi terpusat untuk generate laporan persentase
+  const generateAndSendPercentageReport = async (
+    bot,
+    entityType,
+    isManual,
+    chatId = null,
+    loadingMessage = null
+  ) => {
+    try {
+      const now = new Date();
       const allUsers = await dbService.getStudentsForEntity(entityType);
       const records = await dbService.getMonthlyAttendanceForEntity(
         entityType,
@@ -75,7 +110,6 @@ module.exports = (bot) => {
         now.getMonth()
       );
 
-      // Di dalam loop for (const user of allUsers)
       for (const user of allUsers) {
         const usernameClean = user.username.toLowerCase();
         const userRecords = userMap[usernameClean] || [];
@@ -88,13 +122,13 @@ module.exports = (bot) => {
             posisi: entityType === "WBS" ? `${user.posisi}` : `${user.status}`,
             presentDays: 0,
             izinDays: 0,
-            sakitDays: 0, 
+            sakitDays: 0,
             absentDays: workingDays,
             percentage: 0,
             evaluation: "BURUK",
           });
         } else {
-          // Hitung jumlah izin dan sakit
+          // Hitung jumlah izin dan sakit - SAMA PERSIS dengan command manual
           let izinDays = 0;
           let sakitDays = 0;
 
@@ -118,8 +152,8 @@ module.exports = (bot) => {
             nama: user.nama,
             posisi: entityType === "WBS" ? `${user.posisi}` : `${user.status}`,
             presentDays: result.presentDays,
-            izinDays: izinDays, // Tambahkan
-            sakitDays: sakitDays, // Tambahkan
+            izinDays: izinDays,
+            sakitDays: sakitDays,
             absentDays: result.absentDays,
             percentage: result.percentage,
             evaluation: result.evaluation,
@@ -141,37 +175,42 @@ module.exports = (bot) => {
         message_thread_id: topicId,
       });
 
-      await bot.sendMessage(
-        chatId,
-        `✅ Laporan persentase ${entityType} telah dikirim ke grup`
-      );
+      if (isManual && chatId) {
+        await bot.sendMessage(
+          chatId,
+          `✅ Laporan persentase ${entityType} telah dikirim ke grup`
+        );
 
-      // Hapus pesan loading setelah selesai
-      if (loadingMessage) {
-        await bot.deleteMessage(chatId, loadingMessage.message_id);
+        // Hapus pesan loading setelah selesai
+        if (loadingMessage) {
+          await bot.deleteMessage(chatId, loadingMessage.message_id);
+        }
       }
+
+      console.log(`✅ Laporan persentase ${entityType} berhasil dikirim`);
     } catch (error) {
-      console.error("Error:", error);
+      console.error(`Error generating report for ${entityType}:`, error);
 
-      // Hapus pesan loading jika ada error
-      if (loadingMessage) {
-        await bot
-          .deleteMessage(chatId, loadingMessage.message_id)
-          .catch(console.error);
+      if (isManual && chatId) {
+        if (loadingMessage) {
+          await bot
+            .deleteMessage(chatId, loadingMessage.message_id)
+            .catch(console.error);
+        }
+        await bot.sendMessage(
+          chatId,
+          `❌ Gagal menghasilkan laporan: ${error.message}`
+        );
       }
-
-      bot.sendMessage(
-        chatId,
-        `❌ Gagal menghasilkan laporan: ${error.message}`
-      );
+      throw error;
     }
-  });
+  };
 
-  // Fungsi untuk laporan otomatis
+  // Fungsi untuk laporan otomatis - MENGGUNAKAN FUNGSI YANG SAMA
   const sendScheduledReports = async () => {
     try {
       const now = new Date();
-      const isFriday = now.getDay() === 5; // 5 = Jumat
+      const isFriday = now.getDay() === 5;
       const isMonthEnd =
         new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() ===
         now.getDate();
@@ -181,100 +220,39 @@ module.exports = (bot) => {
       const entityTypes = ["MAGANG", "WBS"];
 
       for (const entityType of entityTypes) {
-        const allUsers = await dbService.getStudentsForEntity(entityType);
+        // Gunakan fungsi yang sama dengan command manual
+        await generateAndSendPercentageReport(bot, entityType, false);
 
-        const records = await dbService.getMonthlyAttendanceForEntity(
-          entityType,
-          now.getFullYear(),
-          now.getMonth() + 1
-        );
-
-        // Kelompokkan per user
-        const userMap = {};
-        records.forEach((record) => {
-          const username = record.user_name.toLowerCase();
-          if (!userMap[username]) {
-            userMap[username] = [];
-          }
-          userMap[username].push(record);
-        });
-
-        const reportData = [];
-        const workingDays = calculateWorkingDays(
-          now.getFullYear(),
-          now.getMonth()
-        );
-
-        for (const user of allUsers) {
-          const usernameClean = user.username.toLowerCase();
-          const userRecords = userMap[usernameClean] || [];
-
-          if (userRecords.length === 0) {
-            reportData.push({
-              nama: user.nama,
-              posisi:
-                entityType === "WBS"
-                  ? `${user.posisi} - ${user.unit}`
-                  : `${user.status} - ${user.unit}`,
-              presentDays: 0,
-              absentDays: workingDays,
-              percentage: 0,
-              evaluation: "Poor ❌",
-            });
-          } else {
-            const result = calculateAttendancePercentage(
-              userRecords,
-              now.getFullYear(),
-              now.getMonth()
-            );
-
-            reportData.push({
-              nama: user.nama,
-              posisi:
-                entityType === "WBS"
-                  ? `${user.posisi} - ${user.unit}`
-                  : `${user.status} - ${user.unit}`,
-              presentDays: result.presentDays,
-              absentDays: result.absentDays,
-              percentage: result.percentage,
-              evaluation: result.evaluation,
-            });
-          }
-        }
-
-        // Urutkan berdasarkan nama
-        reportData.sort((a, b) => a.nama.localeCompare(b.nama));
-
-        // Tulis ke sheet dan generate gambar
-        await googleSheetsService.writePercentageReport(reportData);
-        await generatePercentageReportImage(bot, process.env.GROUP_CHAT_ID, {
-          message_thread_id: getEntityByType(entityType).topicId,
-        });
+        console.log(`✅ Scheduled report for ${entityType} completed`);
       }
     } catch (error) {
       console.error("Error in scheduled reports:", error);
     }
   };
 
-  // Jadwalkan tiap hari jam 17:00 WIB
   const scheduleReport = () => {
     const now = new Date();
     const target = new Date(now);
 
-    // Set jam 17:00 WIB (UTC+7)
-    target.setUTCHours(10, 0, 0, 0);
+    // Set jam 17:00 WITA (UTC+8) - SESUAIKAN DENGAN TIMEZONE SERVER
+    target.setUTCHours(10, 40, 0, 0); // 17:00 WITA = 09:00 UTC
 
     if (now > target) {
       target.setDate(target.getDate() + 1);
     }
 
     const timeout = target - now;
+    console.log(
+      `⏰ Scheduled report will run in ${timeout / 1000 / 60} minutes`
+    );
+
     setTimeout(() => {
       sendScheduledReports();
-      setInterval(sendScheduledReports, 24 * 60 * 60 * 1000); // Setiap 24 jam
+      // Jalankan setiap hari pada jam yang sama
+      setInterval(sendScheduledReports, 24 * 60 * 60 * 1000);
     }, timeout);
   };
 
-  // Mulai penjadwalan
+  // Jalankan scheduling
   scheduleReport();
 };
