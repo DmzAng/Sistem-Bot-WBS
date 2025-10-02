@@ -7,15 +7,12 @@ module.exports = (bot, userStates) => {
     const welcomeMessage = `
 👋 *Selamat datang di Bot Absensi WBS!*
 
-Sebelum melakukan absen, silakan daftar terlebih dahulu sesuai kebutuhan Anda:
+Sebelum melakukan absen, silakan daftar terlebih dahulu:
 
-1️⃣ *Daftar Magang* – untuk peserta *PKL / Magang*
-   👉 Gunakan perintah: /daftarmagang
+📝 *Daftar* – Untuk semua jenis pengguna
+   👉 Gunakan perintah: /register
 
-2️⃣ *Daftar WBS* – untuk karyawan atau staff WBS
-   👉 Gunakan perintah: /daftarwbs
-
-📝 *Visiting Planing* – Rencanakan visiting ke klien
+📋 *Visiting Planing* – Rencanakan visiting ke klien
    👉 Membuat Rencana: /buatvisiting 
    👉 Menjalankan Rencana: /pilihvisiting 
 
@@ -27,7 +24,7 @@ _📌 Pastikan Anda sudah memiliki username Telegram sebelum mendaftar._
     });
   });
 
-  bot.onText(/\/daftarmagang/, async (msg) => {
+  bot.onText(/\/register/, async (msg) => {
     const chatId = msg.chat.id;
     const username = msg.from.username;
 
@@ -50,46 +47,17 @@ _📌 Pastikan Anda sudah memiliki username Telegram sebelum mendaftar._
       userStates[chatId] = {
         registration: {
           step: 1,
-          entityType: "MAGANG",
           data: {},
         },
       };
-      bot.sendMessage(chatId, "📝 Silakan masukkan Nama Lengkap Anda:");
-    } catch (error) {
-      console.error(error);
-      bot.sendMessage(chatId, "❌ Gagal memproses pendaftaran");
-    }
-  });
 
-  // Handler Daftar WBS
-  bot.onText(/\/daftarwbs/, async (msg) => {
-    const chatId = msg.chat.id;
-    const username = msg.from.username;
-
-    if (!username) {
-      return bot.sendMessage(
-        chatId,
-        "❌ Anda harus memiliki username Telegram untuk mendaftar"
-      );
-    }
-
-    try {
-      const existing = await dbService.getUserByUsername(username);
-      if (existing) {
-        return bot.sendMessage(
-          chatId,
-          `❌ Username @${username} sudah terdaftar!`
-        );
-      }
-
-      userStates[chatId] = {
-        registration: {
-          step: 1,
-          entityType: "WBS",
-          data: {},
+      bot.sendMessage(chatId, "👤 Pilih jenis pengguna:", {
+        reply_markup: {
+          keyboard: [["Karyawan", "Magang"]],
+          one_time_keyboard: true,
+          resize_keyboard: true,
         },
-      };
-      bot.sendMessage(chatId, "📝 Silakan masukkan Nama Lengkap Anda:");
+      });
     } catch (error) {
       console.error(error);
       bot.sendMessage(chatId, "❌ Gagal memproses pendaftaran");
@@ -106,41 +74,80 @@ _📌 Pastikan Anda sudah memiliki username Telegram sebelum mendaftar._
 
     if (!state) return;
 
-    // Proses Magang
-    if (state.entityType === "MAGANG") {
-      switch (state.step) {
-        case 1:
-          state.data.nama = text;
-          state.step = 2;
-          bot.sendMessage(chatId, "📌 Pilih Status:", {
-            reply_markup: {
-              keyboard: [["PKL", "Magang"]],
-              one_time_keyboard: true,
-            },
-          });
-          break;
+    // Step 1: Pilih jenis pengguna (Karyawan/Magang)
+    if (state.step === 1) {
+      if (!["Karyawan", "Magang"].includes(text)) {
+        return bot.sendMessage(
+          chatId,
+          "❌ Pilihan tidak valid! Silakan pilih Karyawan atau Magang."
+        );
+      }
 
-        case 2:
+      state.data.userType = text;
+
+      if (text === "Magang") {
+        state.entityType = "MAGANG";
+        state.step = 2;
+        bot.sendMessage(chatId, "📝 Silakan masukkan Nama Lengkap Anda:");
+      } else {
+        // Karyawan
+        state.step = 2;
+        bot.sendMessage(chatId, "📝 Silakan masukkan Nama Lengkap Anda:");
+      }
+      return;
+    }
+
+    // Step 2: Input nama lengkap (untuk semua jenis)
+    if (state.step === 2) {
+      state.data.nama = text;
+
+      if (state.data.userType === "Magang") {
+        state.step = 3;
+        bot.sendMessage(chatId, "📌 Pilih Status:", {
+          reply_markup: {
+            keyboard: [["PKL", "Magang"]],
+            one_time_keyboard: true,
+          },
+        });
+      } else {
+        // Karyawan
+        state.step = 3;
+        bot.sendMessage(chatId, "💼 Pilih Posisi:", {
+          reply_markup: {
+            keyboard: [["Account Representative", "Sales Assistant", "Lainnya"]],
+            one_time_keyboard: true,
+            resize_keyboard: true,
+          },
+        });
+      }
+      return;
+    }
+
+    // PROSES MAGANG
+    if (state.data.userType === "Magang") {
+      switch (state.step) {
+        case 3: // Status (PKL/Magang)
           if (!["PKL", "Magang"].includes(text)) {
             return bot.sendMessage(chatId, "❌ Pilihan tidak valid!");
           }
           state.data.status = text;
-          state.step = 3;
+          state.step = 4;
           bot.sendMessage(chatId, "🏫 Masukkan Asal Sekolah/Universitas:");
           break;
 
-        case 3:
+        case 4: // Asal sekolah/universitas
           state.data.asal = text;
-          state.step = 4;
+          state.step = 5;
+          const magangEntity = getEntityByType("MAGANG");
           bot.sendMessage(chatId, "🏢 Pilih Unit Penempatan:", {
             reply_markup: {
-              keyboard: [getEntityByType("MAGANG").unitOptions],
+              keyboard: [magangEntity.unitOptions],
               one_time_keyboard: true,
             },
           });
           break;
 
-        case 4:
+        case 5: // Unit penempatan
           state.data.unit = text;
           state.data.username = user;
 
@@ -159,21 +166,65 @@ _📌 Pastikan Anda sudah memiliki username Telegram sebelum mendaftar._
           console.log(
             `✅ Pendaftaran Magang atas nama ${state.data.nama} berhasil!`
           );
-          bot.sendMessage(chatId, "✅ Pendaftaran Magang berhasil!");
+          bot.sendMessage(
+            chatId,
+            "✅ Pendaftaran Magang berhasil!\n\nAnda sekarang dapat menggunakan fitur absensi."
+          );
           break;
       }
     }
 
-    // Proses WBS
-    if (state.entityType === "WBS") {
+    // PROSES KARYAWAN
+    if (state.data.userType === "Karyawan") {
       switch (state.step) {
-        case 1:
-          state.data.nama = text;
-          state.step = 2;
-          bot.sendMessage(chatId, "💼 Masukkan Posisi/Jabatan:");
+        case 3: // Pilih posisi (AR/SA/Lainnya)
+          if (
+            !["Account Representative", "Sales Assistant", "Lainnya"].includes(
+              text
+            )
+          ) {
+            return bot.sendMessage(chatId, "❌ Pilihan tidak valid!");
+          }
+
+          if (text === "Account Representative") {
+            state.entityType = "AR";
+            state.data.posisi = "Account Representative";
+            state.data.unit = getEntityByType("AR").unit;
+          } else if (text === "Sales Assistant") {
+            state.entityType = "SA";
+            state.data.posisi = "Sales Assistant";
+            state.data.unit = getEntityByType("SA").unit;
+          } else {
+            state.entityType = "WBS";
+            state.step = 4; // Lanjut ke input posisi manual
+            bot.sendMessage(chatId, "💼 Masukkan Posisi/Jabatan Anda:");
+            return;
+          }
+
+          // Simpan langsung untuk AR/SA
+          state.data.username = user;
+          await dbService.createUser({
+            username: user,
+            nama: state.data.nama,
+            entity_type: state.entityType,
+            posisi: state.data.posisi,
+            status: "",
+            asal: "",
+            unit: state.data.unit,
+          });
+
+          delete userStates[chatId];
+          const entityName =
+            state.entityType === "AR"
+              ? "Account Representative"
+              : "Sales Assistant";
+          bot.sendMessage(
+            chatId,
+            `✅ Pendaftaran ${entityName} berhasil!\n\nAnda sekarang dapat menggunakan fitur absensi dan visiting plan.`
+          );
           break;
 
-        case 2:
+        case 4: // Input posisi manual untuk WBS
           state.data.posisi = text;
           state.data.unit = getEntityByType("WBS").unit;
           state.data.username = user;
@@ -190,7 +241,10 @@ _📌 Pastikan Anda sudah memiliki username Telegram sebelum mendaftar._
           });
 
           delete userStates[chatId];
-          bot.sendMessage(chatId, "✅ Pendaftaran WBS berhasil!");
+          bot.sendMessage(
+            chatId,
+            "✅ Pendaftaran WBS berhasil!\n\nAnda sekarang dapat menggunakan fitur absensi."
+          );
           break;
       }
     }

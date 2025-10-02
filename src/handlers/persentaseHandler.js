@@ -9,6 +9,28 @@ const {
 } = require("../utils/reportGeneratorUtil");
 const googleSheetsService = require("../services/googleSheetsService");
 
+// Fungsi untuk mendapatkan waktu WITA
+function getWITADate() {
+  const now = new Date();
+  const witaOffset = 8 * 60 * 60 * 1000; // UTC+8
+  return new Date(now.getTime() + witaOffset);
+}
+
+// Fungsi untuk cek apakah hari Jumat di WITA
+function isFridayWITA() {
+  const witaDate = getWITADate();
+  return witaDate.getUTCDay() === 5; // 5 = Jumat
+}
+
+// Fungsi untuk cek apakah akhir bulan di WITA
+function isMonthEndWITA() {
+  const witaDate = getWITADate();
+  const year = witaDate.getUTCFullYear();
+  const month = witaDate.getUTCMonth();
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return witaDate.getUTCDate() === lastDay;
+}
+
 module.exports = (bot) => {
   bot.onText(/\/persentase(?:\s+(\w+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
@@ -43,13 +65,11 @@ module.exports = (bot) => {
         );
       }
 
-      // Kirim pesan loading dan simpan ID-nya
       loadingMessage = await bot.sendMessage(
         chatId,
         "🔄 Sedang membuat laporan..."
       );
 
-      // Gunakan fungsi yang sama dengan scheduled report
       await generateAndSendPercentageReport(
         bot,
         entityType,
@@ -60,7 +80,6 @@ module.exports = (bot) => {
     } catch (error) {
       console.error("Error:", error);
 
-      // Hapus pesan loading jika ada error
       if (loadingMessage) {
         await bot
           .deleteMessage(chatId, loadingMessage.message_id)
@@ -83,12 +102,12 @@ module.exports = (bot) => {
     loadingMessage = null
   ) => {
     try {
-      const now = new Date();
+      const witaDate = getWITADate();
       const allUsers = await dbService.getStudentsForEntity(entityType);
       const records = await dbService.getMonthlyAttendanceForEntity(
         entityType,
-        now.getFullYear(),
-        now.getMonth() + 1
+        witaDate.getUTCFullYear(),
+        witaDate.getUTCMonth() + 1
       );
 
       console.log(`Found ${records.length} records for ${entityType}`);
@@ -106,8 +125,8 @@ module.exports = (bot) => {
 
       const reportData = [];
       const workingDays = calculateWorkingDays(
-        now.getFullYear(),
-        now.getMonth()
+        witaDate.getUTCFullYear(),
+        witaDate.getUTCMonth()
       );
 
       for (const user of allUsers) {
@@ -128,7 +147,6 @@ module.exports = (bot) => {
             evaluation: "BURUK",
           });
         } else {
-          // Hitung jumlah izin dan sakit - SAMA PERSIS dengan command manual
           let izinDays = 0;
           let sakitDays = 0;
 
@@ -143,8 +161,8 @@ module.exports = (bot) => {
 
           const result = calculateAttendancePercentage(
             userRecords,
-            now.getFullYear(),
-            now.getMonth(),
+            witaDate.getUTCFullYear(),
+            witaDate.getUTCMonth(),
             entityType
           );
 
@@ -167,10 +185,7 @@ module.exports = (bot) => {
       const groupChatId = process.env.GROUP_CHAT_ID;
       const topicId = entityConfig.topicId;
 
-      // Tulis ke Google Sheets untuk AppScript generate PDF
       await googleSheetsService.writePercentageReport(reportData);
-
-      // Generate dan kirim laporan
       await generatePercentageReportImage(bot, groupChatId, {
         message_thread_id: topicId,
       });
@@ -181,7 +196,6 @@ module.exports = (bot) => {
           `✅ Laporan persentase ${entityType} telah dikirim ke grup`
         );
 
-        // Hapus pesan loading setelah selesai
         if (loadingMessage) {
           await bot.deleteMessage(chatId, loadingMessage.message_id);
         }
@@ -206,23 +220,27 @@ module.exports = (bot) => {
     }
   };
 
-  // Fungsi untuk laporan otomatis - MENGGUNAKAN FUNGSI YANG SAMA
+  // Fungsi untuk laporan otomatis dengan timezone WITA
   const sendScheduledReports = async () => {
     try {
-      const now = new Date();
-      const isFriday = now.getDay() === 5;
-      const isMonthEnd =
-        new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() ===
-        now.getDate();
+      const isFriday = isFridayWITA();
+      const isMonthEnd = isMonthEndWITA();
 
-      if (!isFriday && !isMonthEnd) return;
+      console.log(
+        `📅 Schedule check - Friday: ${isFriday}, MonthEnd: ${isMonthEnd}, WITA Date: ${getWITADate().toUTCString()}`
+      );
+
+      if (!isFriday && !isMonthEnd) {
+        console.log(
+          "⏭️ Scheduled report skipped: not Friday and not month end"
+        );
+        return;
+      }
 
       const entityTypes = ["MAGANG", "WBS"];
 
       for (const entityType of entityTypes) {
-        // Gunakan fungsi yang sama dengan command manual
         await generateAndSendPercentageReport(bot, entityType, false);
-
         console.log(`✅ Scheduled report for ${entityType} completed`);
       }
     } catch (error) {
@@ -231,24 +249,24 @@ module.exports = (bot) => {
   };
 
   const scheduleReport = () => {
-    const now = new Date();
-    const target = new Date(now);
+    const witaNow = getWITADate();
+    const target = new Date(witaNow);
 
-    // Set jam 17:00 WITA (UTC+8) - SESUAIKAN DENGAN TIMEZONE SERVER
-    target.setUTCHours(10, 40, 0, 0); // 17:00 WITA = 09:00 UTC
+    target.setUTCHours(8, 30, 0, 0);
 
-    if (now > target) {
-      target.setDate(target.getDate() + 1);
+    if (witaNow > target) {
+      target.setUTCDate(target.getUTCDate() + 1);
     }
 
-    const timeout = target - now;
+    const timeout = target - witaNow;
     console.log(
-      `⏰ Scheduled report will run in ${timeout / 1000 / 60} minutes`
+      `⏰ Scheduled report will run in ${Math.round(
+        timeout / 1000 / 60
+      )} minutes at ${target.toUTCString()}`
     );
 
     setTimeout(() => {
       sendScheduledReports();
-      // Jalankan setiap hari pada jam yang sama
       setInterval(sendScheduledReports, 24 * 60 * 60 * 1000);
     }, timeout);
   };

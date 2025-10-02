@@ -38,11 +38,11 @@ module.exports = {
       userData;
     const { rows } = await pool.query(
       `INSERT INTO users (username, nama, entity_type, posisi, status, asal, unit) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7) 
-       RETURNING id`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7) 
+     RETURNING id`,
       [username, nama, entity_type, posisi, status, asal, unit]
     );
-    return rows[0].id; // Get inserted ID from RETURNING
+    return rows[0].id;
   },
 
   // Attendance operations

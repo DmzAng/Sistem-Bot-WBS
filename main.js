@@ -13,7 +13,7 @@ const persentaseHandler = require("./src/handlers/persentaseHandler");
 const visitPlanHandler = require("./src/handlers/visitPlanHandler");
 const visitExecutionHandler = require("./src/handlers/visitExecutionHandler");
 const pool = require("./config/database");
-const express = require('express');
+const express = require("express");
 const app = express();
 
 async function testDbConnection() {
@@ -24,14 +24,14 @@ async function testDbConnection() {
     console.error("❌ Database connection failed", error);
     process.exit(1);
   }
-} 
+}
 
 testDbConnection();
 
 const port = process.env.PORT || 3000;
 
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
 });
 
 app.listen(port, () => {
@@ -64,3 +64,5 @@ process.on("SIGINT", () => {
 });
 
 console.log("🚀 Bot berhasil berjalan!");
+
+console.log("🕒 Server time:", new Date().toString());

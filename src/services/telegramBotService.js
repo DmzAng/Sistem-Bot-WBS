@@ -24,20 +24,28 @@ const ENTITIES = {
     healthOptions: ["Sehat", "Kurang Fit", "Izin"],
   },
   AR: {
-    healthOptions: ["Sehat", "Izin", "Sakit"],
+    dataSheet: "AR",
     rekapSheet: "RekapAR",
     sendRekapSheet: "SendRekapAR",
+    buttons: ["ONSITE", "REMOTE"],
     topicId: process.env.REKAP_AR_TOPIC_ID,
-    registrationSheet: "RegistrasiAR",
-    columns: ["username", "nama", "posisi", "unit"],
+    hasAsal: false,
+    unit: "Account Representative",
+    unitOptions: ["Account Representative"],
+    healthOptions: ["Sehat", "Kurang Fit", "Izin"],
+    canAccessVisiting: true,
   },
   SA: {
-    healthOptions: ["Sehat", "Izin", "Sakit"],
+    dataSheet: "SA",
     rekapSheet: "RekapSA",
     sendRekapSheet: "SendRekapSA",
+    buttons: ["ONSITE", "REMOTE"],
     topicId: process.env.REKAP_SA_TOPIC_ID,
-    registrationSheet: "RegistrasiSA",
-    columns: ["username", "nama", "posisi", "unit"],
+    hasAsal: false,
+    unit: "Sales Account",
+    unitOptions: ["Sales Account"],
+    healthOptions: ["Sehat", "Kurang Fit", "Izin"],
+    canAccessVisiting: true,
   },
 };
 
@@ -49,6 +57,11 @@ module.exports = {
     return ENTITIES[type.toUpperCase()];
   },
 
+  canAccessVisiting(entityType) {
+    const entity = this.getEntityByType(entityType);
+    return entity ? entity.canAccessVisiting === true : false;
+  },
+  
   createBot: () => {
     const bot = new TelegramBot(process.env.TOKEN, {
       polling: {

@@ -10,20 +10,45 @@ const escapeMarkdown = (text) => {
 
 module.exports = (bot, stateManager) => {
   // Command untuk memulai pembuatan rencana
-  bot.onText(/\/buatvisiting/, (msg) => {
+  bot.onText(/\/buatvisiting/, async (msg) => {
     const chatId = msg.chat.id;
-    stateManager.setState(chatId, {
-      creatingPlan: true,
-      step: "awaiting_count",
-      plan: {
-        user_location: null,
-        visit_locations: [],
-      },
-    });
-    bot.sendMessage(
-      chatId,
-      "📝 Masukkan jumlah LOKASI KUNJUNGAN yang akan dikunjungi (minimal 1):"
-    );
+    const username = msg.from.username;
+
+    try {
+      // Cek apakah user terdaftar dan memiliki akses visiting
+      const user = await dbService.getUserByUsername(username);
+      if (!user) {
+        return bot.sendMessage(
+          chatId,
+          "❌ Anda harus terdaftar terlebih dahulu. Gunakan /register"
+        );
+      }
+
+      const telegramService = require("../services/telegramBotService");
+      if (!telegramService.canAccessVisiting(user.entity_type)) {
+        return bot.sendMessage(
+          chatId,
+          "❌ Fitur visiting hanya dapat diakses oleh Account Representative dan Sales Assistant."
+        );
+      }
+
+      // Lanjutkan dengan kode existing...
+      stateManager.setState(chatId, {
+        creatingPlan: true,
+        step: "awaiting_count",
+        plan: {
+          user_location: null,
+          visit_locations: [],
+        },
+      });
+      bot.sendMessage(
+        chatId,
+        "📝 Masukkan jumlah LOKASI KUNJUNGAN yang akan dikunjungi (minimal 1):"
+      );
+    } catch (error) {
+      console.error(error);
+      bot.sendMessage(chatId, "❌ Gagal memproses permintaan");
+    }
   });
 
   // Handler untuk pesan teks selama proses pembuatan rencana

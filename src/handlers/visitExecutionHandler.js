@@ -15,7 +15,7 @@ const escapeMarkdown = (text) => {
   }
   return text.replace(/([\_*\[\]\(\)~\`>\#\+\-=\|{}\.!])/g, "\\$1");
 };
- 
+
 const isWithinRadius = (lat1, lon1, lat2, lon2, radiusMeters = 50) => {
   const distance = calculateDistance(
     { lat: lat1, lon: lon1 },
@@ -38,6 +38,14 @@ module.exports = (bot, stateManager) => {
       const user = await dbService.getUserByUsername(msg.from.username);
       if (!user) {
         return bot.sendMessage(chatId, "❌ User tidak ditemukan.");
+      }
+
+      const telegramService = require("../services/telegramBotService");
+      if (!telegramService.canAccessVisiting(user.entity_type)) {
+        return bot.sendMessage(
+          chatId,
+          "❌ Fitur visiting hanya dapat diakses oleh Account Representative dan Sales Assistant."
+        );
       }
 
       // Dapatkan rencana kunjungan hari ini
