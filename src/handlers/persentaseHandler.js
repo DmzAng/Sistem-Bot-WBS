@@ -252,7 +252,7 @@ module.exports = (bot) => {
     const witaNow = getWITADate();
     const target = new Date(witaNow);
 
-    target.setUTCHours(8, 30, 0, 0);
+    target.setUTCHours(16, 45, 0, 0);
 
     if (witaNow > target) {
       target.setUTCDate(target.getUTCDate() + 1);
