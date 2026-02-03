@@ -220,7 +220,7 @@ _📌 Pastikan Anda sudah memiliki username Telegram sebelum mendaftar._
               : "Sales Assistant";
           bot.sendMessage(
             chatId,
-            `✅ Pendaftaran ${entityName} berhasil!\n\nAnda sekarang dapat menggunakan fitur absensi dan visiting plan.`
+            `✅ Pendaftaran ${entityName} berhasil!\n\nAnda sekarang dapat menggunakan fitur perencaan kunjungan.`
           );
           break;
 

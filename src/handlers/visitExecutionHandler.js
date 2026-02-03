@@ -24,6 +24,49 @@ const isWithinRadius = (lat1, lon1, lat2, lon2, radiusMeters = 50) => {
   return distance <= radiusMeters;
 };
 
+const sendVisitReport = async (bot, user, visitData, photoFileId) => {
+  try {
+    const telegramService = require("../services/telegramBotService");
+    const entity = telegramService.getEntityByType(user.entity_type);
+
+    if (!entity || !entity.topicId) {
+      console.error(
+        "Entity atau topicId tidak ditemukan untuk:",
+        user.entity_type
+      );
+      return;
+    }
+
+    const groupChatId = process.env.GROUP_CHAT_ID; // ID grup utama
+    const topicId = parseInt(entity.topicId);
+
+    const mapsUrl = `https://www.google.com/maps?q=${visitData.location.lat},${visitData.location.lon}`;
+
+    const reportMessage =
+      `🏢 *Visiting Dilakukan!*\n\n` +
+      `👤 *Nama:* ${visitData.userName}\n` +
+      `📍 *Lokasi:* ${visitData.locationName}\n` +
+      `🌐 *Koordinat:* ${visitData.location.lat.toFixed(
+        6
+      )}, ${visitData.location.lon.toFixed(6)}\n` +
+      `🗺️ *Google Maps:* [Buka di Maps](${mapsUrl})\n` +
+      `⏰ *Waktu:* ${visitData.timestamp.toLocaleString("id-ID")}`;
+
+    // Kirim foto dengan caption ke grup dalam thread yang sesuai
+    await bot.sendPhoto(groupChatId, photoFileId, {
+      caption: reportMessage,
+      parse_mode: "Markdown",
+      message_thread_id: topicId,
+    });
+
+    console.log(
+      `Report kunjungan berhasil dikirim ke grup untuk ${user.entity_type}`
+    );
+  } catch (error) {
+    console.error("Error mengirim report kunjungan:", error);
+  }
+};
+
 module.exports = (bot, stateManager) => {
   // Command untuk memilih kunjungan
   bot.onText(/\/pilihvisiting/, async (msg) => {
@@ -202,7 +245,6 @@ module.exports = (bot, stateManager) => {
         });
       }
     }
-    // Handler untuk memilih lokasi awal kunjungan
     // Handler untuk memilih lokasi awal kunjungan
     else if (data.startsWith("start_visit_")) {
       const parts = data.split("_");
@@ -430,7 +472,7 @@ Silakan menuju ke lokasi yang benar.`
   bot.on("photo", async (msg) => {
     const chatId = msg.chat.id;
     const state = stateManager.getState(chatId);
-    const photo = msg.photo[msg.photo.length - 1]; // Foto dengan resolusi tertinggi
+    const photo = msg.photo[msg.photo.length - 1];
 
     if (!state || !state.executingPlan || !state.currentVisitLocation) return;
 
@@ -448,6 +490,21 @@ Silakan menuju ke lokasi yang benar.`
         execution_photo: photo.file_id,
         execution_location: state.currentVisitLocation,
       });
+
+      const user = await dbService.getUserByUsername(msg.from.username);
+
+      if (user) {
+        // Siapkan data untuk report
+        const visitData = {
+          userName: `${msg.from.first_name} ${msg.from.last_name || ""}`,
+          locationName: currentVisit.name,
+          location: state.currentVisitLocation,
+          timestamp: new Date(),
+        };
+
+        // Kirim report ke grup
+        await sendVisitReport(bot, user, visitData, photo.file_id);
+      }
 
       // Update state - gunakan lokasi kunjungan saat ini sebagai titik awal berikutnya
       const nextIndex = state.currentVisitIndex + 1;

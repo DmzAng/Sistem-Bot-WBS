@@ -11,6 +11,7 @@ const ENTITIES = {
     hasAsal: true,
     unitOptions: ["Witel Business Service"],
     healthOptions: ["Sehat", "Kurang Fit", "Izin"],
+    canAccessAttendance: true,
   },
   WBS: {
     dataSheet: "WBS",
@@ -22,6 +23,7 @@ const ENTITIES = {
     unit: "Witel Business Service",
     unitOptions: ["Witel Business Service"],
     healthOptions: ["Sehat", "Kurang Fit", "Izin"],
+    canAccessAttendance: true,
   },
   AR: {
     dataSheet: "AR",
@@ -34,6 +36,7 @@ const ENTITIES = {
     unitOptions: ["Account Representative"],
     healthOptions: ["Sehat", "Kurang Fit", "Izin"],
     canAccessVisiting: true,
+    canAccessAttendance: false,
   },
   SA: {
     dataSheet: "SA",
@@ -46,6 +49,7 @@ const ENTITIES = {
     unitOptions: ["Sales Account"],
     healthOptions: ["Sehat", "Kurang Fit", "Izin"],
     canAccessVisiting: true,
+    canAccessAttendance: false,
   },
 };
 
@@ -61,7 +65,7 @@ module.exports = {
     const entity = this.getEntityByType(entityType);
     return entity ? entity.canAccessVisiting === true : false;
   },
-  
+
   createBot: () => {
     const bot = new TelegramBot(process.env.TOKEN, {
       polling: {

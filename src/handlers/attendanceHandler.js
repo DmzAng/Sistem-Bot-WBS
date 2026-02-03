@@ -198,7 +198,7 @@ async function saveAttendanceData(bot, userStates, chatId, state) {
     const now = new Date();
     const witaOffset = 8 * 60 * 60 * 1000;
     const witaTime = new Date(now.getTime() + witaOffset);
-    
+
     const day = String(witaTime.getUTCDate()).padStart(2, "0");
     const month = String(witaTime.getUTCMonth() + 1).padStart(2, "0");
     const year = witaTime.getUTCFullYear();
@@ -335,12 +335,21 @@ module.exports = (bot, userStates) => {
     }
 
     try {
-      // Cek di database
       const user = await dbService.getUserByUsername(username);
       if (!user) {
         return bot.sendMessage(
           chatId,
           "❌ Anda belum terdaftar. Silakan daftar dulu"
+        );
+      }
+
+      const telegramService = require("../services/telegramBotService");
+      if (telegramService.canAccessVisiting(user.entity_type)) {
+        return bot.sendMessage(
+          chatId,
+          "❌ Fitur absen tidak tersedia untuk AR dan SA. Gunakan fitur visiting dengan perintah:\n\n" +
+            "/buatvisiting - Buat rencana kunjungan\n" +
+            "/pilihvisiting - Mulai eksekusi kunjungan"
         );
       }
 

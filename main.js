@@ -2,7 +2,6 @@ require("dotenv").config();
 process.env.TZ = "Asia/Makassar";
 
 const { createBot } = require("./src/services/telegramBotService");
-const StateManager = require("./stateManager");
 const registrationHandler = require("./src/handlers/registrationHandler");
 const attendanceHandler = require("./src/handlers/attendanceHandler");
 const todoHandler = require("./src/handlers/todoHandler");

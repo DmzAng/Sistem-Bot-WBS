@@ -252,7 +252,7 @@ module.exports = (bot, stateManager) => {
             (optimized.distance / 1000).toFixed(2)
           )} ${escapeMarkdown("km")}\n`;
           response += escapeMarkdown(
-            "Ketik /pilihkunjungan untuk memulai kunjungan."
+            "Ketik /pilihvisiting untuk memulai kunjungan."
           );
 
           bot.sendMessage(chatId, response, { parse_mode: "MarkdownV2" });
